@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局 CSS 变量，与 PIM 中台对齐 */
+:root {
+  --color-primary: #4c6ef5;
+  --color-primary-hover: #4263eb;
+  --color-border: #e9ecef;
+  --color-bg-page: #f8f9fa;
+  --color-bg-card: #ffffff;
+  --color-text-primary: #212529;
+  --color-text-secondary: #868e96;
+  --color-text-tertiary: #adb5bd;
+  --color-success: #2f9e44;
+  --color-danger: #e03131;
+  --color-warning: #f59f00;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-tertiary); }
+
+/* 去掉 Electron 默认的文字选中蓝色背景 */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background-color: var(--color-bg-page);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow: hidden;
+}
+
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
