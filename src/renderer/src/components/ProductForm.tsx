@@ -177,9 +177,9 @@ function extractSkuFromFilename(filename: string): string | null {
  */
 async function compressImageBase64(
   base64Str: string,
-  maxWidth = 1024,
-  maxHeight = 1024,
-  quality = 0.8
+  maxWidth = 512,
+  maxHeight = 512,
+  quality = 0.65
 ): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image()
@@ -325,7 +325,7 @@ export function ProductForm(): JSX.Element {
 
   // ==================== AI 一键智能填表（单阶段：主图+SKU → 全部信息） ====================
   const handleAiFill = async (): Promise<void> => {
-    const mainImages = images.filter((img) => img.labels.includes('主图')).slice(0, 3)
+    const mainImages = images.filter((img) => img.labels.includes('主图')).slice(0, 1)
 
     if (mainImages.length === 0) {
       setAiError('请先在图片标注步骤中标记至少一张主图')
@@ -342,25 +342,85 @@ export function ProductForm(): JSX.Element {
       }
 
       const st = useSorterStore.getState()
+      const list = st.skuList
 
-      // 收集 SKU 图片 Base64（压缩后）及唯一 ID
+      // 准备主图任务
+      const mainTasks = mainImages.map((img) => ({
+        type: 'main' as const,
+        safeKey: img.originalPath.replace(/\\/g, '/'),
+        readPath: img.originalPath,
+      }))
+
+      // 准备 SKU 任务（仅 needAiName=true 的需要读图）
+      const skuTasks = list
+        .map((sku, i) => ({
+          type: 'sku' as const,
+          index: i,
+          readPath: sku.imagePath,
+          needImage: sku.needAiName === true,
+        }))
+        .filter((t) => t.needImage)
+
+      // 一次性并发读取所有图片
+      setSuccessMessage('正在并发读取全部图片（主图 + SKU图）...')
+      console.log(
+        `[AI填表] 并发读取：主图${mainTasks.length}张，SKU图${skuTasks.length}张，跳过${list.length - skuTasks.length}张`
+      )
+
+      const allReadResults = await Promise.all([
+        ...mainTasks.map(async (t) => {
+          const b64 = await readB64(t.readPath).catch(() => '')
+          return { type: 'main' as const, safeKey: t.safeKey, b64 }
+        }),
+        ...skuTasks.map(async (t) => {
+          const b64 = await readB64(t.readPath).catch(() => '')
+          return { type: 'sku' as const, index: t.index, b64 }
+        }),
+      ])
+
+      // 构建快速索引
+      const mainB64List: string[] = []
+      for (const t of mainTasks) {
+        const result = allReadResults.find(
+          (r) => r.type === 'main' && r.safeKey === t.safeKey
+        )
+        mainB64List.push(result?.b64 || '')
+      }
+
+      const skuB64ByIndex = new Map<number, string>()
+      for (const r of allReadResults) {
+        if (r.type === 'sku') {
+          skuB64ByIndex.set(r.index, r.b64)
+        }
+      }
+
+      // 构造 AI payload
+      setSuccessMessage('图片读取完成，正在调用 AI 识别...')
+
       const skuBase64List: string[] = []
       const skuIds: string[] = []
       const existingNames: string[] = []
 
-      for (let i = 0; i < st.skuList.length; i++) {
-        const s = st.skuList[i]
-        const imgBase64 = s.imagePath ? await readB64(s.imagePath).catch(() => '') : ''
-        skuBase64List.push(imgBase64)
+      for (let i = 0; i < list.length; i++) {
+        const s = list[i]
         const safeId = (s.imagePath || `sku-${i}`).replace(/\\/g, '/')
         skuIds.push(safeId)
-        existingNames.push(s.needAiName ? '' : s.colorName)
+
+        if (s.needAiName) {
+          skuBase64List.push(skuB64ByIndex.get(i) || '')
+          existingNames.push('')
+        } else {
+          skuBase64List.push('')
+          existingNames.push(s.colorName)
+        }
       }
 
-      const mainBase64List = await Promise.all(mainImages.map((img) => readB64(img.originalPath)))
+      console.log(
+        `[AI填表] payload 图片总数：${mainB64List.length + skuBase64List.filter(Boolean).length}张`
+      )
 
       const infoResult = await window.electronAPI.callAiVision({
-        mainBase64List,
+        mainBase64List: mainB64List,
         skuBase64List,
         skuIds,
         existingNames,
@@ -370,8 +430,12 @@ export function ProductForm(): JSX.Element {
       if (!infoResult.success) {
         setAiError(infoResult.error || 'AI 分析失败')
         setAiLoading(false)
+        setSuccessMessage(null)
         return
       }
+
+      // 回填表单
+      setSuccessMessage('正在填写表单...')
 
       const infoData = infoResult.data as {
         title?: string
@@ -381,7 +445,6 @@ export function ProductForm(): JSX.Element {
         skus?: Array<{ skuId: string; skuName: string }>
       }
 
-      // 回填基础 SPU 信息
       if (infoData.title) setProductInfo({ title: infoData.title })
       if (infoData.description) setProductInfo({ description: infoData.description })
 
@@ -394,14 +457,12 @@ export function ProductForm(): JSX.Element {
         incrementCounter()
       }
 
-      // 回填类目（触发 SKU 编码联动）
       if (infoData.category) {
         const catCode = getCategoryCode(infoData.category)
         updateSpu({ categoryCode: catCode, spuName: infoData.title || '' })
       }
 
-      // 回填 SKU 名称（按 imagePath 精准匹配 skuId）
-      const needAiCount = st.skuList.filter((s) => s.needAiName).length
+      const needAiCount = list.filter((s) => s.needAiName).length
       let skuSucceeded = 0
 
       if (infoData.skus && Array.isArray(infoData.skus)) {
@@ -422,8 +483,11 @@ export function ProductForm(): JSX.Element {
       if (skuFailed > 0 && needAiCount > 0) {
         setAiError(`${skuSucceeded} 个 SKU 名称识别成功，${skuFailed} 个失败（可手动填写）`)
       }
+
+      setSuccessMessage(null)
     } catch (e) {
       setAiError(`AI 调用异常：${(e as Error).message}`)
+      setSuccessMessage(null)
     } finally {
       setAiLoading(false)
     }

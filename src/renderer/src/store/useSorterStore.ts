@@ -188,7 +188,7 @@ export const useSorterStore = create<SorterStore>()(
       aiConfig: {
         apiKey: 'ark-83ad293a-c0eb-4f8b-82b5-d250d541c3ad-f4bfc',
         baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-        model: 'doubao-seed-2-0-lite-260428',
+        model: 'doubao-seed-1-6-flash-250828',
       },
       setAiConfig: (config) =>
         set((state) => {
@@ -199,7 +199,7 @@ export const useSorterStore = create<SorterStore>()(
           state.aiConfig = {
             apiKey: 'ark-83ad293a-c0eb-4f8b-82b5-d250d541c3ad-f4bfc',
             baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-            model: 'doubao-seed-2-0-lite-260428',
+            model: 'doubao-seed-1-6-flash-250828',
           }
         }),
 

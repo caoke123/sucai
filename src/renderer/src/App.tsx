@@ -13,10 +13,10 @@ function App(): JSX.Element {
       </div>
 
       {/* 底部页脚 */}
-      <footer className="w-full py-3 text-center border-t border-gray-100 bg-gray-50/50 text-xs text-gray-400 select-none flex justify-center items-center gap-4 shrink-0">
+      <footer className="w-full py-3 text-center border-t border-gray-100 bg-gray-50/50 text-xs text-gray-600 font-medium select-none flex justify-center items-center gap-4 shrink-0">
         <span>雨图饰品素材分拣系统</span>
         <span className="w-px h-3 bg-gray-200" />
-        <span>版本号：v1.2</span>
+        <span>版本号：v2.2</span>
         <span className="w-px h-3 bg-gray-200" />
         <span>作者：xp</span>
         <span className="w-px h-3 bg-gray-200" />

@@ -68,7 +68,7 @@ export function SettingsModal({ open, onClose }: Props): JSX.Element | null {
               type="text"
               value={aiConfig.model}
               onChange={(e) => setAiConfig({ model: e.target.value })}
-              placeholder="doubao-seed-2-0-lite-260428"
+              placeholder="doubao-seed-1-6-flash-250828"
               className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
                          focus:outline-none focus:border-[var(--color-primary)]
                          text-[var(--color-text-primary)]"

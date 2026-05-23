@@ -1,6 +1,6 @@
 {
   "name": "material-sorter",
-  "version": "1.0.0",
+  "version": "2.2.0",
   "description": "产品素材分拣工具",
   "main": "./out/main/index.js",
   "scripts": {
@@ -47,7 +47,8 @@
       "output": "dist"
     },
     "win": {
-      "target": "nsis"
+      "target": "zip",
+      "signAndEditExecutable": false
     },
     "mac": {
       "target": "dmg"

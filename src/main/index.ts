@@ -23,7 +23,7 @@ let aiConfigPath = ''
 const defaultAiConfig = {
   apiKey: '',
   baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-  model: 'doubao-seed-2-0-lite-260428',
+  model: 'doubao-seed-1-6-flash-250828',
 }
 
 // 读取 AI 配置
@@ -115,18 +115,18 @@ function createWindow(): void {
           contentParts.push({ type: 'image_url', image_url: { url: b64 } })
         }
 
-        // SKU 图：每张图前附加唯一 ID 文本标签
+        // SKU 图：每张图前附加唯一 ID 文本标签；已有名称的不传图片
         const existing = payload.existingNames || []
-        const needIdentifyList: string[] = []
         for (let i = 0; i < payload.skuBase64List.length; i++) {
           const skuId = (payload.skuIds[i] || `sku-${i}`).replace(/\\/g, '/')
           if (existing[i]) {
-            contentParts.push({ type: 'text', text: `SKU_ID: ${skuId} — 已有名称，无需识别` })
-            contentParts.push({ type: 'image_url', image_url: { url: payload.skuBase64List[i] } })
-          } else {
+            contentParts.push({
+              type: 'text',
+              text: `SKU_ID: ${skuId} — 已有名称"${existing[i]}"，无需识别，请勿在skus数组中返回`,
+            })
+          } else if (payload.skuBase64List[i]) {
             contentParts.push({ type: 'text', text: `SKU_ID: ${skuId} — 请识别此图的款式名称` })
             contentParts.push({ type: 'image_url', image_url: { url: payload.skuBase64List[i] } })
-            needIdentifyList.push(skuId)
           }
         }
 
@@ -245,6 +245,9 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
     mainWindow.setMenu(null) // 隐藏顶部默认菜单栏
+    if (is.dev) {
+      mainWindow.webContents.openDevTools()
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
