@@ -1,4 +1,4 @@
-import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem } from '../shared/types'
+import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState } from '../shared/types'
 
 interface AiConfig {
   apiKey: string
@@ -35,6 +35,16 @@ declare global {
       saveAiConfig: (config: AiConfig) => Promise<void>
       callAiVision: (payload: CallAiVisionPayload) => Promise<CallAiVisionResult>
       callSingleSkuVision: (payload: CallSingleSkuPayload) => Promise<{ success: boolean; specName?: string; error?: string }>
+      r2ConfigGet: () => Promise<R2Config>
+      r2ConfigSet: (config: Partial<R2Config>) => Promise<void>
+      r2ConfigTest: () => Promise<{ success: boolean; error?: string }>
+      uploadQueueAdd: (task: Omit<UploadTask, 'status' | 'progress' | 'totalFiles' | 'uploadedFiles' | 'retryCount' | 'createdAt'>) => Promise<{ success: boolean; error?: string }>
+      uploadQueueRetry: (taskId: string) => Promise<void>
+      uploadQueueRemove: (taskId: string) => Promise<void>
+      uploadQueueGet: () => Promise<UploadQueueState>
+      uploadQueueClearCompleted: () => Promise<void>
+      onUploadQueueUpdate: (callback: (state: UploadQueueState) => void) => void
+      offUploadQueueUpdate: (callback: (state: UploadQueueState) => void) => void
     }
     api: {
       db: {

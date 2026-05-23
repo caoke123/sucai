@@ -1,11 +1,13 @@
+import { useEffect, useRef } from 'react'
 import { useSorterStore } from '../store/useSorterStore'
 import { useFileSystem } from '../hooks/useFileSystem'
 
 export function OutputResult(): JSX.Element {
-  const { outputPath, reset } = useSorterStore()
+  const { outputPath, productInfo, reset } = useSorterStore()
   const { openPath } = useFileSystem()
+  const addedRef = useRef(false)
 
-  // 打开输出文件夹（Electron 用原生 shell.openPath，Web 通过 Agent API）
+  // 打开输出文件夹
   const handleOpenFolder = async (): Promise<void> => {
     if (outputPath) {
       await openPath(outputPath)
@@ -16,6 +18,26 @@ export function OutputResult(): JSX.Element {
   const handleNextProduct = (): void => {
     reset()
   }
+
+  // 生成完成后自动加入上传队列（fire-and-forget）
+  useEffect(() => {
+    if (!outputPath || addedRef.current || !window.electronAPI) return
+    addedRef.current = true
+
+    const folderName = outputPath.split(/[\\/]/).pop() ?? (productInfo.productNo || 'unknown')
+
+    window.electronAPI.uploadQueueAdd({
+      taskId: Date.now() + '_' + (productInfo.productNo || 'unknown'),
+      productNo: productInfo.productNo || 'unknown',
+      productName: productInfo.title || '未命名产品',
+      localPackagePath: outputPath,
+      folderName,
+    }).then((result) => {
+      if (!result.success) {
+        console.warn('自动加入上传队列失败:', result.error)
+      }
+    })
+  }, [outputPath])
 
   return (
     <div className="h-full flex items-center justify-center p-8">
@@ -48,6 +70,12 @@ export function OutputResult(): JSX.Element {
           <p className="text-sm text-[var(--color-text-primary)] font-mono break-all leading-relaxed">
             {outputPath || '未知路径'}
           </p>
+        </div>
+
+        {/* 云端同步状态 */}
+        <div className="mb-6">
+          <p className="text-sm text-green-600">素材包已生成完成 ✓</p>
+          <p className="text-sm text-gray-400 mt-1">图片正在后台同步至云端，可继续处理下一个产品</p>
         </div>
 
         {/* 操作按钮 */}

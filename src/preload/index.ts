@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem } from '../shared/types'
+import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState } from '../shared/types'
 
 interface AiConfig {
   apiKey: string
@@ -54,6 +54,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 单图 SKU 识别（1对1 精准识图）
   callSingleSkuVision: (payload: { base64Data: string; aiConfig?: AiConfig }): Promise<{ success: boolean; specName?: string; error?: string }> =>
     ipcRenderer.invoke('call-single-sku-vision', payload),
+
+  // R2 云存储配置
+  r2ConfigGet: (): Promise<R2Config> =>
+    ipcRenderer.invoke('r2-config-get'),
+  r2ConfigSet: (config: Partial<R2Config>): Promise<void> =>
+    ipcRenderer.invoke('r2-config-set', config),
+  r2ConfigTest: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('r2-config-test'),
+
+  // 上传队列
+  uploadQueueAdd: (task: Omit<UploadTask, 'status' | 'progress' | 'totalFiles' | 'uploadedFiles' | 'retryCount' | 'createdAt'>): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('upload-queue-add', task),
+  uploadQueueRetry: (taskId: string): Promise<void> =>
+    ipcRenderer.invoke('upload-queue-retry', taskId),
+  uploadQueueRemove: (taskId: string): Promise<void> =>
+    ipcRenderer.invoke('upload-queue-remove', taskId),
+  uploadQueueGet: (): Promise<UploadQueueState> =>
+    ipcRenderer.invoke('upload-queue-get'),
+  uploadQueueClearCompleted: (): Promise<void> =>
+    ipcRenderer.invoke('upload-queue-clear-completed'),
+  onUploadQueueUpdate: (callback: (state: UploadQueueState) => void): void => {
+    ipcRenderer.on('upload-queue-update', (_event, state) => callback(state))
+  },
+  offUploadQueueUpdate: (callback: (state: UploadQueueState) => void): void => {
+    ipcRenderer.removeListener('upload-queue-update', callback)
+  },
 })
 
 // 数据库操作 API

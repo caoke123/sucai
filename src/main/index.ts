@@ -15,6 +15,8 @@ import { registerSelectDirectoryHandler } from './ipc/selectDirectory'
 import { registerScanFolderHandler } from './ipc/scanFolder'
 import { registerOrganizeFilesHandler } from './ipc/organizeFiles'
 import { registerDbHandlers } from './ipc/dbHandlers'
+import { registerR2ConfigHandlers, initR2Config } from './ipc/r2Config'
+import { UploadQueueManager, registerUploadQueueHandlers } from './ipc/uploadQueue'
 
 // AI 配置文件路径
 let aiConfigPath = ''
@@ -67,6 +69,12 @@ function createWindow(): void {
   registerScanFolderHandler()
   registerOrganizeFilesHandler()
   registerDbHandlers()
+  registerR2ConfigHandlers()
+
+  // R2 上传队列单例
+  const uploadQueueManager = new UploadQueueManager()
+  uploadQueueManager.setWindow(mainWindow)
+  registerUploadQueueHandlers(uploadQueueManager)
 
   // 打开本地文件夹
   ipcMain.handle('open-path', async (_event, dirPath: string): Promise<string> => {
@@ -245,9 +253,6 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
     mainWindow.setMenu(null) // 隐藏顶部默认菜单栏
-    if (is.dev) {
-      mainWindow.webContents.openDevTools()
-    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -269,6 +274,7 @@ app.whenReady().then(() => {
     ? join(app.getPath('userData'), 'ai-config.json')
     : join(app.getAppPath(), 'ai-config.json')
   loadAiConfig() // 确保配置文件存在
+  initR2Config() // 初始化 R2 配置文件路径
 
   electronApp.setAppUserModelId('com.material-sorter')
 

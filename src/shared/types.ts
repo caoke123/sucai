@@ -157,3 +157,36 @@ export interface OrganizeResult {
   outputPath?: string;           // 生成的素材包完整路径
   error?: string;
 }
+
+// R2 云存储配置
+export interface R2Config {
+  endpoint: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+  customDomain: string;
+}
+
+// 单个上传任务
+export interface UploadTask {
+  taskId: string;
+  productNo: string;
+  productName: string;
+  localPackagePath: string;
+  folderName: string;
+  status: 'pending' | 'uploading' | 'done' | 'failed';
+  progress: number;
+  totalFiles: number;
+  uploadedFiles: number;
+  errorMessage?: string;
+  retryCount: number;
+  createdAt: string;
+  completedAt?: string;
+  publicBaseUrl?: string;
+}
+
+// 上传队列状态
+export interface UploadQueueState {
+  tasks: UploadTask[];
+  isProcessing: boolean;
+}

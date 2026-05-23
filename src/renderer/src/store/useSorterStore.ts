@@ -21,7 +21,7 @@ interface SorterStore {
   setImages: (images: ImageFile[]) => void
   setImageLabel: (id: string, label: ImageLabel, skuSpec?: string) => void
   removeImageLabel: (id: string, label: ImageLabel) => void
-  setMultipleLabels: (ids: string[], label: ImageLabel) => void
+  setMultipleLabels: (ids: string[], labels: ImageLabel[]) => void
 
   // 当前激活的标签（标注模式下）
   activeLabel: ImageLabel
@@ -169,18 +169,23 @@ export const useSorterStore = create<SorterStore>()(
             img.labels = ['未分类']
           }
         }),
-      setMultipleLabels: (ids, label) =>
+      setMultipleLabels: (ids, labels) =>
         set((state) => {
           state.images.forEach((img) => {
             if (!ids.includes(img.id)) return
-            if (label === '未分类') {
+            // 如果 labels 包含"未分类"，清空所有标签
+            if (labels.includes('未分类')) {
               img.labels = ['未分类']
               return
             }
-            img.labels = img.labels.filter((l) => l !== '未分类')
-            if (!img.labels.includes(label)) {
-              img.labels.push(label)
-            }
+            // 合并：移去现有"未分类" + 追加新标签（去重）
+            const merged = Array.from(
+              new Set([
+                ...img.labels.filter((l) => l !== '未分类'),
+                ...labels,
+              ])
+            )
+            img.labels = merged.length > 0 ? merged : ['未分类']
           })
         }),
 
