@@ -16,9 +16,19 @@ const DEFAULT_R2_CONFIG: R2Config = {
 let configPath = ''
 let cachedConfig: R2Config = { ...DEFAULT_R2_CONFIG }
 
-// 初始化配置文件路径
+// 初始化配置文件路径 (启动时调用, 确保 cachedConfig 已从文件加载)
 export function initR2Config(): void {
   configPath = join(app.getPath('userData'), 'r2-config.json')
+  // 同步尝试从文件加载已有配置
+  try {
+    const fsSync = require('fs')
+    if (fsSync.existsSync(configPath)) {
+      const raw = fsSync.readFileSync(configPath, 'utf-8')
+      cachedConfig = { ...DEFAULT_R2_CONFIG, ...JSON.parse(raw) }
+    }
+  } catch {
+    // 文件不存在或损坏, 使用默认值
+  }
 }
 
 // 读取配置
