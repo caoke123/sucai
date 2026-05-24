@@ -209,6 +209,7 @@ export class UploadQueueManager {
 
       // ===== Step 2: 并发上传所有文件 =====
       const uploadedPaths: Array<{ relativePath: string; s3Key: string }> = []
+      const failedFiles: string[] = []
 
       const uploadFile = async (relativePath: string): Promise<void> => {
         const fullPath = path.join(basePath, relativePath)
@@ -234,17 +235,30 @@ export class UploadQueueManager {
         this.pushStateToRenderer()
       }
 
+      const safeUploadFile = async (relativePath: string): Promise<void> => {
+        try {
+          await uploadFile(relativePath)
+        } catch (err) {
+          failedFiles.push(relativePath)
+          console.error(`[R2 Upload] 失败: ${relativePath} — ${(err as Error).message}`)
+        }
+      }
+
       const uploadEmptyDir = async (relativePath: string): Promise<void> => {
-        const normalizedPath = relativePath.replace(/\\/g, '/')
-        const dirKey = `products/${task.folderName}/${normalizedPath}/`
-        await client.send(
-          new PutObjectCommand({
-            Bucket: config.bucket,
-            Key: dirKey,
-            Body: '',
-            ContentType: 'application/x-directory',
-          })
-        )
+        try {
+          const normalizedPath = relativePath.replace(/\\/g, '/')
+          const dirKey = `products/${task.folderName}/${normalizedPath}/`
+          await client.send(
+            new PutObjectCommand({
+              Bucket: config.bucket,
+              Key: dirKey,
+              Body: '',
+              ContentType: 'application/x-directory',
+            })
+          )
+        } catch (err) {
+          console.warn(`[R2 Upload] 空目录上传失败: ${relativePath}`)
+        }
 
         task.uploadedFiles++
         task.progress = Math.round((task.uploadedFiles / task.totalFiles) * 100)
@@ -262,9 +276,13 @@ export class UploadQueueManager {
         const batch = allUploadItems.slice(i, i + concurrency)
         await Promise.all(
           batch.map((item) =>
-            item.type === 'file' ? uploadFile(item.path) : uploadEmptyDir(item.path)
+            item.type === 'file' ? safeUploadFile(item.path) : uploadEmptyDir(item.path)
           )
         )
+      }
+
+      if (failedFiles.length > 0) {
+        console.error(`[R2 Upload] ${failedFiles.length} 个文件上传失败: ${failedFiles.join(', ')}`)
       }
 
       // 输出上传统计

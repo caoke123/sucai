@@ -1,7 +1,7 @@
 import { ipcMain, app } from 'electron'
 import { readFile, writeFile, access } from 'fs/promises'
 import { join } from 'path'
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import type { R2Config } from '@shared/types'
 
 // 默认 R2 配置模板 (不含密钥, 用户需通过设置面板填入)
@@ -76,28 +76,27 @@ export function registerR2ConfigHandlers(): void {
   ipcMain.handle(
     'r2-config-test',
     async (): Promise<{ success: boolean; error?: string }> => {
+      console.log('[R2 Config] 开始测试连接, bucket:', cachedConfig.bucket, 'endpoint:', cachedConfig.endpoint)
       try {
+        if (!cachedConfig.accessKeyId || !cachedConfig.secretAccessKey) {
+          return { success: false, error: 'R2 密钥未配置，请先填入 Access Key ID 和 Secret Access Key' }
+        }
+
         const client = createS3Client(cachedConfig)
 
         await client.send(
-          new PutObjectCommand({
+          new ListObjectsV2Command({
             Bucket: cachedConfig.bucket,
-            Key: '_r2_test_.txt',
-            Body: 'ok',
-            ContentType: 'text/plain',
+            MaxKeys: 1,
           })
         )
 
-        await client.send(
-          new DeleteObjectCommand({
-            Bucket: cachedConfig.bucket,
-            Key: '_r2_test_.txt',
-          })
-        )
-
+        console.log('[R2 Config] 连接测试成功')
         return { success: true }
       } catch (error) {
-        return { success: false, error: (error as Error).message }
+        const msg = (error as Error).message || String(error)
+        console.error('[R2 Config] 连接测试失败:', msg)
+        return { success: false, error: msg }
       }
     }
   )

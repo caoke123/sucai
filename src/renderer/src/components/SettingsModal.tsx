@@ -38,17 +38,27 @@ export function SettingsModal({ open, onClose }: Props): JSX.Element | null {
 
   // 测试 R2 连接
   const testR2Connection = async (): Promise<void> => {
-    if (!window.electronAPI) return
+    if (!window.electronAPI) {
+      setR2TestResult({ ok: false, msg: '当前环境不支持 R2 连接测试' })
+      return
+    }
     setR2Testing(true)
     setR2TestResult(null)
-    // 先保存当前配置
-    await window.electronAPI.r2ConfigSet(r2Config)
-    const result = await window.electronAPI.r2ConfigTest()
-    setR2TestResult({
-      ok: result.success,
-      msg: result.success ? '连接成功' : `失败：${result.error}`,
-    })
-    setR2Testing(false)
+    console.log('[R2 Test] 开始测试连接...')
+    try {
+      await window.electronAPI.r2ConfigSet(r2Config)
+      const result = await window.electronAPI.r2ConfigTest()
+      console.log('[R2 Test] 结果:', result)
+      setR2TestResult({
+        ok: result.success,
+        msg: result.success ? 'R2 连接成功' : `连接失败：${result.error}`,
+      })
+    } catch (err) {
+      console.error('[R2 Test] 异常:', err)
+      setR2TestResult({ ok: false, msg: `测试异常：${(err as Error).message}` })
+    } finally {
+      setR2Testing(false)
+    }
   }
 
   if (!open) return null
