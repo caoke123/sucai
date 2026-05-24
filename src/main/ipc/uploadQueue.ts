@@ -6,11 +6,11 @@ import { getR2Config, createS3Client } from './r2Config'
 import type { UploadTask, UploadQueueState } from '../../shared/types'
 import {
   MIME_TYPE_MAP,
-  FOLDER_TO_R2_CATEGORY,
   UPLOAD_CONCURRENCY,
   UPLOAD_MAX_RETRIES,
   UPLOAD_RETRY_DELAY_MS,
 } from '../../shared/constants'
+import { buildR2Metadata } from '../services/export/buildR2Metadata'
 
 function getContentType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase()
@@ -266,53 +266,13 @@ export class UploadQueueManager {
         task.progress = Math.round(((task.totalFiles - 1) / task.totalFiles) * 100)
         this.pushStateToRenderer()
 
-        const FOLDER_TO_CATEGORY = FOLDER_TO_R2_CATEGORY
-
-        // 拼接完整 CDN URL（每段单独编码）
-        const buildUrl = (key: string): string => {
-          return baseUrl + '/' + key.split('/').map((seg) => encodeURIComponent(seg)).join('/')
-        }
-
-        // 按分类组织图片
-        const r2Images: Record<string, Array<{ fileName: string; url: string }>> = {
-          main: [],
-          sku: [],
-          detail: [],
-          size: [],
-          certificate: [],
-        }
-
-        for (const uploaded of uploadedPaths) {
-          const parts = uploaded.relativePath.replace(/\\/g, '/').split('/')
-          if (parts.length < 2) continue
-          const folderName = parts[0]
-          const fileName = parts[parts.length - 1]
-          const category = FOLDER_TO_CATEGORY[folderName]
-          if (!category) continue
-
-          r2Images[category].push({
-            fileName,
-            url: buildUrl(uploaded.s3Key),
-          })
-        }
-
-        // 为 SKU 数据补充 imageUrl
         const skus = (originalJson.skus as Array<Record<string, unknown>>) || []
-        const skuImagesList = r2Images.sku
-        const updatedSkus = skus.map((sku) => {
-          const skuName = (sku.skuName as string) || ''
-          const matched = skuImagesList.find((img) =>
-            img.fileName.includes(skuName)
-          )
-          return matched ? { ...sku, imageUrl: matched.url } : sku
+        const { r2Field, updatedSkus } = buildR2Metadata({
+          folderName: task.folderName,
+          baseUrl,
+          uploadedPaths,
+          originalSkus: skus,
         })
-
-        const r2Field = {
-          basePath: `products/${task.folderName}/`,
-          baseUrl: `${baseUrl}/products/${encodedFolder}/`,
-          syncedAt: new Date().toISOString(),
-          images: r2Images,
-        }
 
         const finalJson = {
           ...originalJson,
