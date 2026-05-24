@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState } from '../shared/types'
+import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState } from '@shared/types'
 
 interface AiConfig {
   apiKey: string

@@ -3,13 +3,13 @@ import fs from 'fs'
 import path from 'path'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { getR2Config, createS3Client } from './r2Config'
-import type { UploadTask, UploadQueueState } from '../../shared/types'
+import type { UploadTask, UploadQueueState } from '@shared/types'
 import {
   MIME_TYPE_MAP,
   UPLOAD_CONCURRENCY,
   UPLOAD_MAX_RETRIES,
   UPLOAD_RETRY_DELAY_MS,
-} from '../../shared/constants'
+} from '@shared/constants'
 import { buildR2Metadata } from '../services/export/buildR2Metadata'
 
 function getContentType(filePath: string): string {

@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
-import type { ImageFile, ImageLabel, ProductInfo, SkuSpecRow, SkuItem, SpuData, PackagingPreset } from '../../shared/types'
-import { DEFAULT_AI_CONFIG } from '../../shared/constants'
+import type { ImageFile, ImageLabel, ProductInfo, SkuSpecRow, SkuItem, SpuData, PackagingPreset } from '@shared/types'
+import { DEFAULT_AI_CONFIG } from '@shared/constants'
 
 type Step = 'folder' | 'labeling' | 'info' | 'preview' | 'done'
 

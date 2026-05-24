@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useSorterStore } from '../store/useSorterStore'
 import { useFileSystem } from '../hooks/useFileSystem'
-import type { ImageFile, ProductOutput } from '../../shared/types'
+import type { ImageFile, ProductOutput } from '@shared/types'
 
 // 标签 → 文件夹名称映射
 const LABEL_TO_FOLDER: Record<string, string> = {

@@ -4,20 +4,31 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
+    resolve: {
+      alias: {
+        '@shared': resolve('src/shared')
+      }
+    },
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        external: ['sharp', 'pg']  // 原生/Node 专用模块，不打包
+        external: ['sharp', 'pg']
       }
     }
   },
   preload: {
+    resolve: {
+      alias: {
+        '@shared': resolve('src/shared')
+      }
+    },
     plugins: [externalizeDepsPlugin()]
   },
   renderer: {
     resolve: {
       alias: {
-        '@': resolve('src/renderer/src')
+        '@': resolve('src/renderer/src'),
+        '@shared': resolve('src/shared')
       }
     },
     plugins: [react()],

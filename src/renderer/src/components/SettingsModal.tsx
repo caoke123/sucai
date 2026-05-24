@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSorterStore } from '../store/useSorterStore'
-import type { R2Config } from '../../shared/types'
+import type { R2Config } from '@shared/types'
 
 interface Props {
   open: boolean

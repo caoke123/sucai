@@ -1,5 +1,5 @@
 import { Pool, PoolClient } from 'pg'
-import type { DbConfig } from '../shared/types'
+import type { DbConfig } from '@shared/types'
 
 let pool: Pool | null = null
 

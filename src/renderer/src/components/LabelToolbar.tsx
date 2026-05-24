@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSorterStore } from '../store/useSorterStore'
-import type { ImageLabel } from '../../shared/types'
+import type { ImageLabel } from '@shared/types'
 
 // 标签配置：值 → 颜色、背景、描述
 const LABELS: Array<{ value: ImageLabel; color: string; bg: string; activeBg: string; desc: string }> = [

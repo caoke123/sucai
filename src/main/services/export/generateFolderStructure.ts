@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { PACKAGE_SUB_FOLDERS, PACKAGE_SUFFIX } from '../../../shared/constants'
+import { PACKAGE_SUB_FOLDERS, PACKAGE_SUFFIX } from '@shared/constants'
 
 export function safeFolderName(rawName: string): string {
   return rawName

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
-import type { ProductOutput, ProductInfo, SkuItem } from '../../../shared/types'
-import { TOOL_VERSION } from '../../../shared/constants'
+import type { ProductOutput, ProductInfo, SkuItem } from '@shared/types'
+import { TOOL_VERSION } from '@shared/constants'
 
 export interface BuildProductJsonInput {
   productInfo: ProductInfo

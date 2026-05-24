@@ -1,4 +1,4 @@
-import type { SpuData, PackagingPreset } from '../../../../shared/types'
+import type { SpuData, PackagingPreset } from '@shared/types'
 
 interface PackagingSectionProps {
   packagingPresets: PackagingPreset[]

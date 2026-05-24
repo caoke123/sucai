@@ -3,7 +3,6 @@
 // 原则: 缺失字段补默认值，不覆盖已有字段，保留所有现有数据
 
 import { DEFAULT_SHOPEE_VALUES, TOOL_VERSION } from './constants'
-import type { ProductOutput, SkuOutput } from './types'
 
 // 解析主版本号 (e.g. '3.0.0' → 3, '4.0.0-beta.1' → 4, missing → 1)
 function parseMajorVersion(version?: string): number {

@@ -1,5 +1,5 @@
 import { useSorterStore } from '../store/useSorterStore'
-import type { ImageFile } from '../../shared/types'
+import type { ImageFile } from '@shared/types'
 
 // 标签 → 角标背景色映射
 const LABEL_COLORS: Record<string, string> = {

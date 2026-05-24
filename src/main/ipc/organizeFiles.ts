@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import type { OrganizeRequest, OrganizeResult } from '../../shared/types'
+import type { OrganizeRequest, OrganizeResult } from '@shared/types'
 import { generateFolderStructure } from '../services/export/generateFolderStructure'
 import { renameAndCopyImages } from '../services/export/renameImages'
 import { buildProductJsonData, writeProductJson } from '../services/export/buildProductJson'

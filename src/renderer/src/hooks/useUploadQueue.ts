@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { UploadTask, UploadQueueState } from '../../shared/types'
+import type { UploadTask, UploadQueueState } from '@shared/types'
 
 interface UploadQueueStats {
   pending: number

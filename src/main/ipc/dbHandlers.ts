@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { createPool, testConnection, getPool, getClient } from '../db'
-import type { DbConfig, PackagingPreset, SpuData, SkuItem } from '../../shared/types'
+import type { DbConfig, PackagingPreset, SpuData, SkuItem } from '@shared/types'
 
 export function registerDbHandlers(): void {
   // 测试数据库连接

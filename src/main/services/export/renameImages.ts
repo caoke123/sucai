@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
-import type { ImageFile } from '../../../shared/types'
-import { LABEL_TO_FOLDER } from '../../../shared/constants'
+import type { ImageFile } from '@shared/types'
+import { LABEL_TO_FOLDER } from '@shared/constants'
 
 export interface RenamedFile {
   sourcePath: string

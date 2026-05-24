@@ -6,7 +6,7 @@ import {
   STYLE_KEYWORD_MAP,
   INVALID_FILENAME_BLACKLIST,
   MEANINGLESS_NAME_REGEX,
-} from '../../../shared/constants'
+} from '@shared/constants'
 import { BasicInfoSection } from './step3/sections/BasicInfoSection'
 import { SkuTableSection } from './step3/sections/SkuTableSection'
 import { PackagingSection } from './step3/sections/PackagingSection'

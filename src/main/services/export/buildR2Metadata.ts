@@ -1,5 +1,5 @@
-import { FOLDER_TO_R2_CATEGORY } from '../../../shared/constants'
-import type { R2Metadata, R2ImageEntry } from '../../../shared/types'
+import { FOLDER_TO_R2_CATEGORY } from '@shared/constants'
+import type { R2Metadata, R2ImageEntry } from '@shared/types'
 
 export interface BuildR2MetadataInput {
   folderName: string

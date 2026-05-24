@@ -2,7 +2,7 @@ import { ipcMain, app } from 'electron'
 import { readFile, writeFile, access } from 'fs/promises'
 import { join } from 'path'
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
-import type { R2Config } from '../../shared/types'
+import type { R2Config } from '@shared/types'
 
 // 默认 R2 测试配置
 const DEFAULT_R2_CONFIG: R2Config = {

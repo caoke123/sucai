@@ -2,8 +2,8 @@ import { ipcMain } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
-import type { ScanFolderResult, ImageFile } from '../../shared/types'
-import { IMAGE_EXTENSIONS, THUMBNAIL_SIZE } from '../../shared/constants'
+import type { ScanFolderResult, ImageFile } from '@shared/types'
+import { IMAGE_EXTENSIONS, THUMBNAIL_SIZE } from '@shared/constants'
 
 const IMAGE_EXT_SET = new Set(IMAGE_EXTENSIONS)
 

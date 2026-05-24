@@ -1,4 +1,4 @@
-import type { ScanFolderResult, OrganizeRequest, OrganizeResult } from '../../shared/types'
+import type { ScanFolderResult, OrganizeRequest, OrganizeResult } from '@shared/types'
 
 // 判断是否运行在 Electron 环境中
 const isElectron = typeof window !== 'undefined' && !!window.electronAPI

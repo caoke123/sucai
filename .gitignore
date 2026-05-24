@@ -27,5 +27,15 @@ coverage/
 temp/
 tmp/
 
+# TypeScript 构建缓存
+*.tsbuildinfo
+
+# 敏感文档 (含密钥)
+SORTER_API_DOC.md
+
+# 临时目录
+temp/
+tmp/
+
 # 用户上传 (运行时生成)
 uploads/

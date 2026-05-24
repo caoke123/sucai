@@ -1,4 +1,4 @@
-import type { ProductInfo, SpuData } from '../../../../shared/types'
+import type { ProductInfo, SpuData } from '@shared/types'
 
 interface BasicInfoSectionProps {
   productInfo: ProductInfo

@@ -1,4 +1,4 @@
-import type { SkuItem } from '../../../../shared/types'
+import type { SkuItem } from '@shared/types'
 
 interface SkuTableSectionProps {
   skuList: SkuItem[]
