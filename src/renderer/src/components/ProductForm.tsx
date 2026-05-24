@@ -8,6 +8,7 @@ import {
   MEANINGLESS_NAME_REGEX,
 } from '@shared/constants'
 import { BasicInfoSection } from './step3/sections/BasicInfoSection'
+import { ShopeeInfoSection } from './step3/sections/ShopeeInfoSection'
 import { SkuTableSection } from './step3/sections/SkuTableSection'
 import { PackagingSection } from './step3/sections/PackagingSection'
 
@@ -169,6 +170,7 @@ export function ProductForm(): JSX.Element {
     selectedPresetId,
     sourceFolderPath,
     outputFolderPath,
+    shopeeInfo,
     setProductInfo,
     setShortTitle,
     setProductCode,
@@ -178,6 +180,8 @@ export function ProductForm(): JSX.Element {
     updateSkuItem,
     updateSpu,
     setPresets,
+    setShopeeInfo,
+    setShopeeAttributes,
     setStep,
   } = useSorterStore()
 
@@ -194,6 +198,7 @@ export function ProductForm(): JSX.Element {
   const [batchWeight, setBatchWeight] = useState('')
   const [batchCost, setBatchCost] = useState('')
   const [batchSelling, setBatchSelling] = useState('')
+  const [batchStock, setBatchStock] = useState('')
 
   // 拉取纸箱预设
   useEffect(() => {
@@ -418,6 +423,7 @@ export function ProductForm(): JSX.Element {
     const weight = batchWeight ? Number(batchWeight) : undefined
     const costPrice = batchCost ? Number(batchCost) : undefined
     const sellingPrice = batchSelling ? Number(batchSelling) : undefined
+    const stock = batchStock ? Number(batchStock) : undefined
 
     if (skuList.length === 0) return
 
@@ -427,6 +433,7 @@ export function ProductForm(): JSX.Element {
       if (weight !== undefined && !isNaN(weight)) updated.weight = weight
       if (costPrice !== undefined && !isNaN(costPrice)) updated.costPrice = costPrice
       if (sellingPrice !== undefined && !isNaN(sellingPrice)) updated.sellingPrice = sellingPrice
+      if (stock !== undefined && !isNaN(stock)) updated.stock = stock
       return updated
     })
     setSkuList(updatedList)
@@ -437,6 +444,7 @@ export function ProductForm(): JSX.Element {
     setBatchWeight('')
     setBatchCost('')
     setBatchSelling('')
+    setBatchStock('')
   }
 
   // 复用上一行数据
@@ -609,6 +617,12 @@ export function ProductForm(): JSX.Element {
           onAiFill={handleAiFill}
         />
 
+        <ShopeeInfoSection
+          shopeeInfo={shopeeInfo}
+          onSetShopeeInfo={setShopeeInfo}
+          onSetAttributes={setShopeeAttributes}
+        />
+
         <SkuTableSection
           skuList={skuList}
           batchLength={batchLength}
@@ -617,12 +631,14 @@ export function ProductForm(): JSX.Element {
           batchWeight={batchWeight}
           batchCost={batchCost}
           batchSelling={batchSelling}
+          batchStock={batchStock}
           onBatchLengthChange={setBatchLength}
           onBatchWidthChange={setBatchWidth}
           onBatchHeightChange={setBatchHeight}
           onBatchWeightChange={setBatchWeight}
           onBatchCostChange={setBatchCost}
           onBatchSellingChange={setBatchSelling}
+          onBatchStockChange={setBatchStock}
           onBatchFill={handleBatchFill}
           onUpdateSkuItem={updateSkuItem}
           onCopyPreviousSku={handleCopyPreviousSku}

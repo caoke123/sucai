@@ -8,16 +8,23 @@ interface SkuTableSectionProps {
   batchWeight: string
   batchCost: string
   batchSelling: string
+  batchStock: string
   onBatchLengthChange: (v: string) => void
   onBatchWidthChange: (v: string) => void
   onBatchHeightChange: (v: string) => void
   onBatchWeightChange: (v: string) => void
   onBatchCostChange: (v: string) => void
   onBatchSellingChange: (v: string) => void
+  onBatchStockChange: (v: string) => void
   onBatchFill: () => void
   onUpdateSkuItem: (index: number, partial: Partial<SkuItem>) => void
   onCopyPreviousSku: (index: number) => void
   getSkuImageSrc: (sku: { imagePath: string; previewUrl?: string }) => string
+}
+
+function safeNumber(value: string): number {
+  const n = Number(value)
+  return isNaN(n) ? 0 : n
 }
 
 export function SkuTableSection({
@@ -28,12 +35,14 @@ export function SkuTableSection({
   batchWeight,
   batchCost,
   batchSelling,
+  batchStock,
   onBatchLengthChange,
   onBatchWidthChange,
   onBatchHeightChange,
   onBatchWeightChange,
   onBatchCostChange,
   onBatchSellingChange,
+  onBatchStockChange,
   onBatchFill,
   onUpdateSkuItem,
   onCopyPreviousSku,
@@ -119,12 +128,24 @@ export function SkuTableSection({
                        text-[var(--color-text-primary)] bg-white"
           />
         </div>
+        <div>
+          <label className="block text-xs text-[var(--color-text-tertiary)] mb-0.5">库存</label>
+          <input
+            type="text"
+            value={batchStock}
+            onChange={(e) => onBatchStockChange(e.target.value)}
+            placeholder="库存"
+            className="w-20 px-2 py-1.5 border border-[var(--color-border)] rounded text-sm
+                       focus:outline-none focus:border-[var(--color-primary)]
+                       text-[var(--color-text-primary)] bg-white"
+          />
+        </div>
         <button
           onClick={onBatchFill}
           className="px-5 py-1.5 bg-[var(--color-primary)] text-white rounded-md text-sm font-medium
                      hover:bg-[var(--color-primary-hover)] transition-colors duration-150 whitespace-nowrap"
         >
-          批量填充
+          应用到全部
         </button>
       </div>
 
@@ -167,7 +188,7 @@ export function SkuTableSection({
               </div>
 
               {/* SKU 编码（只读） */}
-              <div className="col-span-2">
+              <div className="col-span-1">
                 <label className="block text-xs text-[var(--color-text-tertiary)] mb-0.5">SKU编码</label>
                 <input
                   type="text"
@@ -180,7 +201,7 @@ export function SkuTableSection({
 
               {/* SKU名称 */}
               <div className="col-span-2">
-                <label className="block text-xs text-[var(--color-text-tertiary)] mb-0.5">SKU名称</label>
+                <label className="block text-xs text-[var(--color-text-tertiary)] mb-0.5">名称</label>
                 <input
                   type="text"
                   value={sku.colorName}
@@ -192,8 +213,22 @@ export function SkuTableSection({
                 />
               </div>
 
-              {/* 尺寸 */}
+              {/* 英文名称 (v4) */}
               <div className="col-span-2">
+                <label className="block text-xs text-[var(--color-text-tertiary)] mb-0.5">英文名称</label>
+                <input
+                  type="text"
+                  value={sku.skuNameEn || ''}
+                  onChange={(e) => onUpdateSkuItem(idx, { skuNameEn: e.target.value })}
+                  placeholder="Pearl White"
+                  className="w-full px-2 py-1.5 border border-[var(--color-border)] rounded text-sm
+                             focus:outline-none focus:border-[var(--color-primary)]
+                             text-[var(--color-text-primary)] bg-white"
+                />
+              </div>
+
+              {/* 尺寸 */}
+              <div className="col-span-1">
                 <label className="block text-xs text-[var(--color-text-tertiary)] mb-0.5">尺寸</label>
                 <input
                   type="text"
@@ -212,7 +247,7 @@ export function SkuTableSection({
                 <input
                   type="number"
                   value={sku.weight || ''}
-                  onChange={(e) => onUpdateSkuItem(idx, { weight: Number(e.target.value) || 0 })}
+                  onChange={(e) => onUpdateSkuItem(idx, { weight: safeNumber(e.target.value) })}
                   placeholder="g"
                   className="w-full px-2 py-1.5 border border-[var(--color-border)] rounded text-sm
                              focus:outline-none focus:border-[var(--color-primary)]
@@ -226,7 +261,7 @@ export function SkuTableSection({
                 <input
                   type="number"
                   value={sku.costPrice || ''}
-                  onChange={(e) => onUpdateSkuItem(idx, { costPrice: Number(e.target.value) || 0 })}
+                  onChange={(e) => onUpdateSkuItem(idx, { costPrice: safeNumber(e.target.value) })}
                   placeholder="¥"
                   className="w-full px-2 py-1.5 border border-[var(--color-border)] rounded text-sm
                              focus:outline-none focus:border-[var(--color-primary)]
@@ -240,8 +275,22 @@ export function SkuTableSection({
                 <input
                   type="number"
                   value={sku.sellingPrice || ''}
-                  onChange={(e) => onUpdateSkuItem(idx, { sellingPrice: Number(e.target.value) || 0 })}
+                  onChange={(e) => onUpdateSkuItem(idx, { sellingPrice: safeNumber(e.target.value) })}
                   placeholder="¥"
+                  className="w-full px-2 py-1.5 border border-[var(--color-border)] rounded text-sm
+                             focus:outline-none focus:border-[var(--color-primary)]
+                             text-[var(--color-text-primary)] bg-white"
+                />
+              </div>
+
+              {/* 库存 (v4) */}
+              <div className="col-span-1">
+                <label className="block text-xs text-[var(--color-text-tertiary)] mb-0.5">库存</label>
+                <input
+                  type="number"
+                  value={sku.stock || ''}
+                  onChange={(e) => onUpdateSkuItem(idx, { stock: safeNumber(e.target.value) })}
+                  placeholder="库存"
                   className="w-full px-2 py-1.5 border border-[var(--color-border)] rounded text-sm
                              focus:outline-none focus:border-[var(--color-primary)]
                              text-[var(--color-text-primary)] bg-white"
