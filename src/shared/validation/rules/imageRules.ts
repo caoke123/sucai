@@ -7,7 +7,7 @@ export function validateImageRules(ctx: ValidationContext): ValidationIssue[] {
   const img = ctx.images
   if (!img) return issues
 
-  // error: 主图 ≥1
+  // error: 主图 ≥ 1
   if (img.mainCount < 1) {
     issues.push({
       field: 'images.main',
@@ -16,18 +16,21 @@ export function validateImageRules(ctx: ValidationContext): ValidationIssue[] {
     })
   }
 
-  // error: SKU 图完整性 (每个 SKU 名称都有对应图片)
+  // error: 有 SKU 但无 SKU 图
   if (img.skuCount === 0 && (ctx.skus?.length ?? 0) > 0) {
     issues.push({
       field: 'images.sku',
       level: 'error',
       message: '缺少 SKU 规格图片',
     })
-  } else if (img.skuWithNameCount < img.skuCount) {
+  }
+
+  // warning: SKU 数量与图片数量不匹配
+  if (img.skuCount > 0 && (ctx.skus?.length ?? 0) > img.skuCount) {
     issues.push({
       field: 'images.sku',
       level: 'warning',
-      message: `${img.skuCount - img.skuWithNameCount} 张 SKU 图未设置规格名称`,
+      message: `${(ctx.skus?.length ?? 0) - img.skuCount} 个 SKU 缺少对应图片`,
     })
   }
 

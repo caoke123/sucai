@@ -40,7 +40,6 @@ export function PreviewPanel(): JSX.Element {
     const mainCount = images.filter((img) => img.labels.includes('主图')).length
     const skuImages = images.filter((img) => img.labels.includes('SKU图'))
     const skuCount = skuImages.length
-    const skuWithNameCount = skuImages.filter((img) => img.skuSpec && img.skuSpec.trim()).length
 
     return {
       shopeeInfo: {
@@ -53,7 +52,7 @@ export function PreviewPanel(): JSX.Element {
         sellingPrice: sku.sellingPrice ?? 0,
         stock: sku.stock ?? 0,
       })),
-      images: { mainCount, skuCount, skuWithNameCount },
+      images: { mainCount, skuCount },
     }
   }, [images, skuList, shopeeInfo])
 

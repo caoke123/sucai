@@ -1,7 +1,7 @@
 // ==================== v4 ProductOutput Builder ====================
 
 import path from 'path'
-import type { ProductOutput, ProductInfo, SkuOutput, AssetManifest } from '@shared/types'
+import type { ProductOutput, ProductInfo, SkuOutput, ProductAssets } from '@shared/types'
 import type { SkuItem, ShopeeInfo } from '@shared/types'
 import { TOOL_VERSION } from '@shared/constants'
 
@@ -17,7 +17,7 @@ export interface ExportV4Input {
   }
   shopeeInfo?: ShopeeInfo
   localPackagePath?: string
-  assetManifest?: AssetManifest
+  assetManifest?: ProductAssets
 }
 
 export function buildV4ProductJson(input: ExportV4Input): ProductOutput {

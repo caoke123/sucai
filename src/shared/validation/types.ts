@@ -27,6 +27,5 @@ export interface ValidationContext {
   images?: {
     mainCount: number
     skuCount: number
-    skuWithNameCount: number
   }
 }

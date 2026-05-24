@@ -2,7 +2,7 @@
 
 import path from 'path'
 import { LABEL_TO_FOLDER, FOLDER_TO_R2_CATEGORY } from '@shared/constants'
-import type { AssetManifest, AssetDescriptor, R2Metadata } from '@shared/types'
+import type { ProductAssets, AssetFile, R2Metadata } from '@shared/types'
 import type { RenamedFile } from './renameImages'
 
 export interface BuildAssetManifestInput {
@@ -11,8 +11,7 @@ export interface BuildAssetManifestInput {
   r2Metadata?: R2Metadata
 }
 
-// label → asset category key mapping
-const LABEL_TO_CATEGORY: Record<string, keyof AssetManifest> = {
+const LABEL_TO_CATEGORY: Record<string, keyof ProductAssets> = {
   '主图': 'main',
   'SKU图': 'sku',
   '详情图': 'detail',
@@ -20,11 +19,11 @@ const LABEL_TO_CATEGORY: Record<string, keyof AssetManifest> = {
   '证书': 'certificate',
 }
 
-function emptyManifest(): AssetManifest {
+function emptyManifest(): ProductAssets {
   return { main: [], sku: [], detail: [], size: [], certificate: [] }
 }
 
-export function buildAssetManifest(input: BuildAssetManifestInput): AssetManifest {
+export function buildAssetManifest(input: BuildAssetManifestInput): ProductAssets {
   const { packagePath, renamedFiles, r2Metadata } = input
   const manifest = emptyManifest()
 
@@ -45,14 +44,14 @@ export function buildAssetManifest(input: BuildAssetManifestInput): AssetManifes
       }
     }
 
-    const descriptor: AssetDescriptor = {
+    const asset: AssetFile = {
       fileName: file.newFileName,
       relativePath,
       localPath: file.destPath,
       r2Url,
     }
 
-    manifest[category].push(descriptor)
+    manifest[category].push(asset)
   }
 
   return manifest

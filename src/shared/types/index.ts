@@ -28,4 +28,4 @@ export type {
 
 export type { PimExtension } from './pim'
 
-export type { AssetDescriptor, AssetManifest } from './assets'
+export type { AssetFile, ProductAssets } from './assets'

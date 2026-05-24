@@ -1,16 +1,17 @@
 // ==================== 素材资源描述符与清单 ====================
 
-export interface AssetDescriptor {
+export interface AssetFile {
   fileName: string
   relativePath: string
   localPath: string
   r2Url?: string
+  uploaded?: boolean
 }
 
-export interface AssetManifest {
-  main: AssetDescriptor[]
-  sku: AssetDescriptor[]
-  detail: AssetDescriptor[]
-  size: AssetDescriptor[]
-  certificate: AssetDescriptor[]
+export interface ProductAssets {
+  main: AssetFile[]
+  sku: AssetFile[]
+  detail: AssetFile[]
+  size: AssetFile[]
+  certificate: AssetFile[]
 }

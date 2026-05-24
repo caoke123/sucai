@@ -282,7 +282,7 @@ export class UploadQueueManager {
           skus: updatedSkus,
         }
 
-        // v4: 更新 assets 中的 r2Url
+        // v4: 更新 assets 中的 r2Url + uploaded 标记
         const existingAssets = originalJson.assets as Record<string, Array<Record<string, unknown>>> | undefined
         if (existingAssets) {
           const enrichedAssets: Record<string, Array<Record<string, unknown>>> = {}
@@ -291,7 +291,7 @@ export class UploadQueueManager {
               const fileName = d.fileName as string
               const catImages = (r2Field.images as Record<string, Array<{ fileName: string; url: string }>>)[cat] || []
               const matched = catImages.find((img) => img.fileName === fileName)
-              return matched ? { ...d, r2Url: matched.url } : d
+              return matched ? { ...d, r2Url: matched.url, uploaded: true } : d
             })
           }
           finalJson.assets = enrichedAssets as unknown as typeof originalJson.assets

@@ -2,7 +2,7 @@
 
 import fs from 'fs'
 import path from 'path'
-import type { ProductOutput, ProductInfo, SkuItem, ShopeeInfo, AssetManifest } from '@shared/types'
+import type { ProductOutput, ProductInfo, SkuItem, ShopeeInfo, ProductAssets } from '@shared/types'
 import { getExportVersion } from './versioning/getExportVersion'
 import { buildV4ProductJson } from './versioning/exportV4'
 import { buildAssetManifest } from './buildAssetManifest'
@@ -26,7 +26,7 @@ export interface BuildProductJsonInput {
 export function buildProductJsonData(input: BuildProductJsonInput): ProductOutput {
   const { productInfo, skuList, outerPackaging, shopeeInfo, localPackagePath, renamedFiles } = input
 
-  let assetManifest: AssetManifest | undefined
+  let assetManifest: ProductAssets | undefined
   if (renamedFiles && localPackagePath) {
     assetManifest = buildAssetManifest({
       packagePath: localPackagePath,
