@@ -2,9 +2,11 @@
 
 import fs from 'fs'
 import path from 'path'
-import type { ProductOutput, ProductInfo, SkuItem, ShopeeInfo } from '@shared/types'
+import type { ProductOutput, ProductInfo, SkuItem, ShopeeInfo, AssetManifest } from '@shared/types'
 import { getExportVersion } from './versioning/getExportVersion'
 import { buildV4ProductJson } from './versioning/exportV4'
+import { buildAssetManifest } from './buildAssetManifest'
+import type { RenamedFile } from './renameImages'
 
 export interface BuildProductJsonInput {
   productInfo: ProductInfo
@@ -18,10 +20,19 @@ export interface BuildProductJsonInput {
   }
   shopeeInfo?: ShopeeInfo
   localPackagePath?: string
+  renamedFiles?: RenamedFile[]
 }
 
 export function buildProductJsonData(input: BuildProductJsonInput): ProductOutput {
-  const { productInfo, skuList, outerPackaging, shopeeInfo, localPackagePath } = input
+  const { productInfo, skuList, outerPackaging, shopeeInfo, localPackagePath, renamedFiles } = input
+
+  let assetManifest: AssetManifest | undefined
+  if (renamedFiles && localPackagePath) {
+    assetManifest = buildAssetManifest({
+      packagePath: localPackagePath,
+      renamedFiles,
+    })
+  }
 
   const version = getExportVersion({ shopeeInfo })
 
@@ -33,6 +44,7 @@ export function buildProductJsonData(input: BuildProductJsonInput): ProductOutpu
         outerPackaging,
         shopeeInfo,
         localPackagePath,
+        assetManifest,
       })
     default:
       return buildV4ProductJson({
@@ -41,6 +53,7 @@ export function buildProductJsonData(input: BuildProductJsonInput): ProductOutpu
         outerPackaging,
         shopeeInfo,
         localPackagePath,
+        assetManifest,
       })
   }
 }

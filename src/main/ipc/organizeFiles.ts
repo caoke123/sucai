@@ -20,7 +20,7 @@ export function registerOrganizeFilesHandler(): void {
         productInfo.title
       )
 
-      renameAndCopyImages(packagePath, images)
+      const renamedFiles = renameAndCopyImages(packagePath, images)
 
       const productData = buildProductJsonData({
         productInfo,
@@ -28,6 +28,7 @@ export function registerOrganizeFilesHandler(): void {
         outerPackaging,
         shopeeInfo,
         localPackagePath: packagePath,
+        renamedFiles,
       })
       writeProductJson(packagePath, productData)
 

@@ -1,8 +1,7 @@
 // ==================== v4 ProductOutput Builder ====================
-// 纯函数: 不写文件, 不依赖 IPC/Electron API, 不修改入参
 
 import path from 'path'
-import type { ProductOutput, ProductInfo, SkuOutput } from '@shared/types'
+import type { ProductOutput, ProductInfo, SkuOutput, AssetManifest } from '@shared/types'
 import type { SkuItem, ShopeeInfo } from '@shared/types'
 import { TOOL_VERSION } from '@shared/constants'
 
@@ -18,10 +17,11 @@ export interface ExportV4Input {
   }
   shopeeInfo?: ShopeeInfo
   localPackagePath?: string
+  assetManifest?: AssetManifest
 }
 
 export function buildV4ProductJson(input: ExportV4Input): ProductOutput {
-  const { productInfo, skuList, outerPackaging, shopeeInfo, localPackagePath } = input
+  const { productInfo, skuList, outerPackaging, shopeeInfo, localPackagePath, assetManifest } = input
 
   const skus: SkuOutput[] = (skuList || []).map((sku) => ({
     skuCode: sku.skuCode,
@@ -52,6 +52,7 @@ export function buildV4ProductJson(input: ExportV4Input): ProductOutput {
     toolVersion: TOOL_VERSION,
     localPath: localPackagePath || '',
     pim: { syncedAt: null, status: 'draft' },
+    assets: assetManifest,
   }
 
   // Shopee 信息 (仅在有数据时写入)

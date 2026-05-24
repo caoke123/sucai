@@ -384,7 +384,35 @@ export function PreviewPanel(): JSX.Element {
               </div>
             </div>
 
-            {/* SKU 汇总 */}
+            {/* Asset Manifest 预览 */}
+            <div className="bg-white rounded-lg border border-[var(--color-border)] p-5">
+              <h3 className="text-md font-medium text-[var(--color-text-primary)] mb-3">
+                素材资源清单 (Asset Manifest)
+              </h3>
+              <div className="space-y-2 text-sm">
+                {Object.entries(renamedImages).length === 0 ? (
+                  <p className="text-xs text-[var(--color-text-tertiary)] italic">暂无素材</p>
+                ) : (
+                  Object.entries(renamedImages).map(([label, files]) => {
+                    const folderName = LABEL_TO_FOLDER[label] || label
+                    return (
+                      <div key={label} className="flex justify-between items-center">
+                        <span className="text-[var(--color-text-secondary)]">{folderName}</span>
+                        <span className="text-[var(--color-text-primary)] text-xs">
+                          {files.length} 个文件
+                          <span className="text-[var(--color-text-tertiary)] ml-1">(本地)</span>
+                        </span>
+                      </div>
+                    )
+                  })
+                )}
+                <div className="border-t border-[var(--color-border)] pt-2 mt-2">
+                  <div className="text-xs text-[var(--color-text-tertiary)]">
+                    上传 R2 后将自动填充 CDN URL
+                  </div>
+                </div>
+              </div>
+            </div>
             {skuList.length > 0 && (
               <div className="bg-white rounded-lg border border-[var(--color-border)] p-5">
                 <h3 className="text-md font-medium text-[var(--color-text-primary)] mb-3">SKU 汇总</h3>

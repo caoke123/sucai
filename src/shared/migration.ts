@@ -76,6 +76,11 @@ function applyV4Defaults(data: Record<string, unknown>, hasR2: boolean): Record<
     result.r2 = undefined
   }
 
+  // assets 字段：旧版本缺失时留空（后续重新导出时自动构建）
+  if (result.assets === undefined) {
+    result.assets = undefined
+  }
+
   return result
 }
 
@@ -126,6 +131,7 @@ export function getMigrationInfo(rawData: Record<string, unknown>): {
   if (!rawData.localPath) missingFields.push('localPath')
   if (!rawData.shopee) missingFields.push('shopee')
   if (!rawData.pim) missingFields.push('pim')
+  if (!rawData.assets) missingFields.push('assets')
 
   const skus = rawData.skus as Array<Record<string, unknown>> | undefined
   if (Array.isArray(skus)) {

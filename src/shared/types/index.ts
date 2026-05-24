@@ -27,3 +27,5 @@ export type {
 } from './r2'
 
 export type { PimExtension } from './pim'
+
+export type { AssetDescriptor, AssetManifest } from './assets'

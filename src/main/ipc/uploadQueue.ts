@@ -282,6 +282,21 @@ export class UploadQueueManager {
           skus: updatedSkus,
         }
 
+        // v4: 更新 assets 中的 r2Url
+        const existingAssets = originalJson.assets as Record<string, Array<Record<string, unknown>>> | undefined
+        if (existingAssets) {
+          const enrichedAssets: Record<string, Array<Record<string, unknown>>> = {}
+          for (const [cat, descriptors] of Object.entries(existingAssets)) {
+            enrichedAssets[cat] = (descriptors as Array<Record<string, unknown>>).map((d) => {
+              const fileName = d.fileName as string
+              const catImages = (r2Field.images as Record<string, Array<{ fileName: string; url: string }>>)[cat] || []
+              const matched = catImages.find((img) => img.fileName === fileName)
+              return matched ? { ...d, r2Url: matched.url } : d
+            })
+          }
+          finalJson.assets = enrichedAssets as unknown as typeof originalJson.assets
+        }
+
         // ===== Step 4: 上传最终 product.json =====
         const finalS3Key = `products/${task.folderName}/product.json`
         await client.send(

@@ -2,6 +2,7 @@ import type { ImageFile } from './image'
 import type { ShopeeInfo } from './shopee'
 import type { R2Metadata } from './r2'
 import type { PimExtension } from './pim'
+import type { AssetManifest } from './assets'
 
 // ==================== 产品基础信息 ====================
 
@@ -41,6 +42,7 @@ export interface ProductOutput {
   shopee?: ShopeeInfo
   r2?: R2Metadata
   pim?: PimExtension
+  assets?: AssetManifest
 }
 
 export interface OuterPackaging {
