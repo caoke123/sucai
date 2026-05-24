@@ -8,40 +8,22 @@ process.on('unhandledRejection', (reason, promise) => {
 })
 
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { readFile, writeFile, access } from 'fs/promises'
+import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { DEFAULT_AI_CONFIG } from '@shared/constants'
 import { registerSelectDirectoryHandler } from './ipc/selectDirectory'
 import { registerScanFolderHandler } from './ipc/scanFolder'
 import { registerOrganizeFilesHandler } from './ipc/organizeFiles'
 import { registerDbHandlers } from './ipc/dbHandlers'
 import { registerR2ConfigHandlers, initR2Config } from './ipc/r2Config'
 import { UploadQueueManager, registerUploadQueueHandlers } from './ipc/uploadQueue'
-
-// AI 配置文件路径
-let aiConfigPath = ''
-
-// AI 配置的默认值
-const defaultAiConfig = { ...DEFAULT_AI_CONFIG }
-
-// 读取 AI 配置
-async function loadAiConfig(): Promise<typeof defaultAiConfig> {
-  try {
-    await access(aiConfigPath)
-    const raw = await readFile(aiConfigPath, 'utf-8')
-    return { ...defaultAiConfig, ...JSON.parse(raw) }
-  } catch {
-    // 首次运行，写回默认配置
-    await writeFile(aiConfigPath, JSON.stringify(defaultAiConfig, null, 2), 'utf-8')
-    return { ...defaultAiConfig }
-  }
-}
-
-// 保存 AI 配置
-async function saveAiConfig(config: typeof defaultAiConfig): Promise<void> {
-  await writeFile(aiConfigPath, JSON.stringify(config, null, 2), 'utf-8')
-}
+import {
+  initAiConfig,
+  getConfig,
+  saveConfig,
+  generateShopeeEnglish,
+} from './services/ai'
+import type { AiProviderConfig } from './services/ai/provider/doubaoProvider'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -85,13 +67,13 @@ function createWindow(): void {
   })
 
   // 获取 AI 配置
-  ipcMain.handle('get-ai-config', async (): Promise<typeof defaultAiConfig> => {
-    return loadAiConfig()
+  ipcMain.handle('get-ai-config', async (): Promise<AiProviderConfig> => {
+    return getConfig()
   })
 
   // 保存 AI 配置
-  ipcMain.handle('save-ai-config', async (_event, config: typeof defaultAiConfig): Promise<void> => {
-    await saveAiConfig(config)
+  ipcMain.handle('save-ai-config', async (_event, config: AiProviderConfig): Promise<void> => {
+    await saveConfig(config)
   })
 
   // AI 视觉分析核心通道（主图分析 + SKU 命名 + 类目识别）
@@ -108,7 +90,7 @@ function createWindow(): void {
       }
     ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> => {
       try {
-        const config = payload.aiConfig?.apiKey ? payload.aiConfig : await loadAiConfig()
+        const config = payload.aiConfig?.apiKey ? payload.aiConfig : await getConfig()
         if (!config.apiKey) {
           return { success: false, error: 'AI 配置中未设置 API Key，请在系统配置中填入密钥' }
         }
@@ -204,7 +186,7 @@ function createWindow(): void {
     'call-single-sku-vision',
     async (_event, payload: { base64Data: string; aiConfig?: { apiKey: string; baseUrl: string; model: string } }): Promise<{ success: boolean; specName?: string; error?: string }> => {
       try {
-        const config = payload.aiConfig?.apiKey ? payload.aiConfig : await loadAiConfig()
+        const config = payload.aiConfig?.apiKey ? payload.aiConfig : await getConfig()
         if (!config.apiKey) {
           return { success: false, error: 'AI 配置中未设置 API Key' }
         }
@@ -247,6 +229,40 @@ function createWindow(): void {
     }
   )
 
+  // v4 Shopee 英文生成 (通过 AI Service Layer)
+  ipcMain.handle(
+    'call-shopee-english',
+    async (
+      _event,
+      payload: {
+        chineseTitle: string
+        chineseDescription: string
+        category: string
+        skuNames: string[]
+        mainImagePath?: string
+        aiConfigOverrides?: { apiKey: string; baseUrl: string; model: string }
+      }
+    ): Promise<{ success: boolean; data?: { title: string; descriptionText: string; material: string; skuNamesEn: string[] }; error?: { type: string; message: string } }> => {
+      const result = await generateShopeeEnglish({
+        chineseTitle: payload.chineseTitle,
+        chineseDescription: payload.chineseDescription,
+        category: payload.category,
+        skuNames: payload.skuNames,
+        mainImagePath: payload.mainImagePath,
+        aiConfigOverrides: payload.aiConfigOverrides,
+      })
+
+      if (!result.success) {
+        return {
+          success: false,
+          error: { type: result.error!.type, message: result.error!.message },
+        }
+      }
+
+      return { success: true, data: result.data }
+    }
+  )
+
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
     mainWindow.setMenu(null) // 隐藏顶部默认菜单栏
@@ -265,13 +281,8 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  // 初始化 AI 配置路径
-  // 开发模式：项目根目录；打包后：userData 目录
-  aiConfigPath = app.isPackaged
-    ? join(app.getPath('userData'), 'ai-config.json')
-    : join(app.getAppPath(), 'ai-config.json')
-  loadAiConfig() // 确保配置文件存在
-  initR2Config() // 初始化 R2 配置文件路径
+  initAiConfig()
+  initR2Config()
 
   electronApp.setAppUserModelId('com.material-sorter')
 

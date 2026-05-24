@@ -23,6 +23,26 @@ interface CallSingleSkuPayload {
   aiConfig?: AiConfig
 }
 
+interface CallShopeeEnglishPayload {
+  chineseTitle: string
+  chineseDescription: string
+  category: string
+  skuNames: string[]
+  mainImagePath?: string
+  aiConfigOverrides?: AiConfig
+}
+
+interface CallShopeeEnglishResult {
+  success: boolean
+  data?: {
+    title: string
+    descriptionText: string
+    material: string
+    skuNamesEn: string[]
+  }
+  error?: { type: string; message: string }
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -35,6 +55,7 @@ declare global {
       saveAiConfig: (config: AiConfig) => Promise<void>
       callAiVision: (payload: CallAiVisionPayload) => Promise<CallAiVisionResult>
       callSingleSkuVision: (payload: CallSingleSkuPayload) => Promise<{ success: boolean; specName?: string; error?: string }>
+      callShopeeEnglish: (payload: CallShopeeEnglishPayload) => Promise<CallShopeeEnglishResult>
       r2ConfigGet: () => Promise<R2Config>
       r2ConfigSet: (config: Partial<R2Config>) => Promise<void>
       r2ConfigTest: () => Promise<{ success: boolean; error?: string }>

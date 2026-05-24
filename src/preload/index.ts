@@ -18,6 +18,26 @@ interface CallAiVisionResult {
   error?: string
 }
 
+interface CallShopeeEnglishPayload {
+  chineseTitle: string
+  chineseDescription: string
+  category: string
+  skuNames: string[]
+  mainImagePath?: string
+  aiConfigOverrides?: AiConfig
+}
+
+interface CallShopeeEnglishResult {
+  success: boolean
+  data?: {
+    title: string
+    descriptionText: string
+    material: string
+    skuNamesEn: string[]
+  }
+  error?: { type: string; message: string }
+}
+
 // 暴露安全的 API 给渲染进程
 contextBridge.exposeInMainWorld('electronAPI', {
   // 选择文件夹
@@ -54,6 +74,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 单图 SKU 识别（1对1 精准识图）
   callSingleSkuVision: (payload: { base64Data: string; aiConfig?: AiConfig }): Promise<{ success: boolean; specName?: string; error?: string }> =>
     ipcRenderer.invoke('call-single-sku-vision', payload),
+
+  // v4 Shopee 英文生成
+  callShopeeEnglish: (payload: CallShopeeEnglishPayload): Promise<CallShopeeEnglishResult> =>
+    ipcRenderer.invoke('call-shopee-english', payload),
 
   // R2 云存储配置
   r2ConfigGet: (): Promise<R2Config> =>

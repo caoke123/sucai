@@ -6,6 +6,7 @@ import {
   STYLE_KEYWORD_MAP,
   INVALID_FILENAME_BLACKLIST,
   MEANINGLESS_NAME_REGEX,
+  DEFAULT_SHOPEE_VALUES,
 } from '@shared/constants'
 import { BasicInfoSection } from './step3/sections/BasicInfoSection'
 import { ShopeeInfoSection } from './step3/sections/ShopeeInfoSection'
@@ -187,6 +188,8 @@ export function ProductForm(): JSX.Element {
 
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
+  const [shopeeAiLoading, setShopeeAiLoading] = useState(false)
+  const [shopeeAiError, setShopeeAiError] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -475,6 +478,64 @@ export function ProductForm(): JSX.Element {
     [packagingPresets, updateSpu]
   )
 
+  // v4 Shopee AI 英文生成
+  const handleShopeeAiGenerate = async (): Promise<void> => {
+    if (!window.electronAPI) {
+      setShopeeAiError('AI 功能仅在桌面端可用')
+      return
+    }
+
+    const st = useSorterStore.getState()
+    const list = st.skuList
+
+    if (list.length === 0) {
+      setShopeeAiError('请先在图片标注步骤中标记 SKU 图')
+      return
+    }
+
+    setShopeeAiLoading(true)
+    setShopeeAiError(null)
+
+    try {
+      const mainImages = images.filter((img) => img.labels.includes('主图'))
+      const mainImagePath = mainImages.length > 0 ? mainImages[0].originalPath : undefined
+
+      const skuNames = list.map((sku) => sku.colorName)
+
+      const result = await window.electronAPI.callShopeeEnglish({
+        chineseTitle: productInfo.title,
+        chineseDescription: productInfo.description,
+        category: st.currentSpu?.categoryCode || '',
+        skuNames,
+        mainImagePath,
+        aiConfigOverrides: aiConfig,
+      })
+
+      if (!result.success) {
+        setShopeeAiError(result.error?.message || 'AI 生成失败')
+        return
+      }
+
+      const { title, descriptionText, material, skuNamesEn } = result.data!
+
+      // 回填 ShopeeInfo
+      setShopeeInfo({ title, descriptionText, leadTime: DEFAULT_SHOPEE_VALUES.leadTime })
+      setShopeeAttributes({ material })
+
+      // 回填每个 SKU 的英文名
+      skuNamesEn.forEach((nameEn, i) => {
+        if (nameEn && i < list.length) {
+          const st2 = useSorterStore.getState()
+          st2.updateSkuItem(i, { skuNameEn: nameEn })
+        }
+      })
+    } catch (e) {
+      setShopeeAiError(`AI 调用异常: ${(e as Error).message}`)
+    } finally {
+      setShopeeAiLoading(false)
+    }
+  }
+
   // 保存新预设
   const handleSavePreset = async (): Promise<void> => {
     const st = useSorterStore.getState()
@@ -619,9 +680,17 @@ export function ProductForm(): JSX.Element {
 
         <ShopeeInfoSection
           shopeeInfo={shopeeInfo}
+          aiLoading={shopeeAiLoading}
           onSetShopeeInfo={setShopeeInfo}
           onSetAttributes={setShopeeAttributes}
+          onAiGenerate={handleShopeeAiGenerate}
         />
+
+        {shopeeAiError && (
+          <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-600">
+            {shopeeAiError}
+          </div>
+        )}
 
         <SkuTableSection
           skuList={skuList}

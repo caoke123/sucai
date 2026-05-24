@@ -2,14 +2,18 @@ import type { ShopeeInfo } from '@shared/types'
 
 interface ShopeeInfoSectionProps {
   shopeeInfo: ShopeeInfo
+  aiLoading: boolean
   onSetShopeeInfo: (info: Partial<ShopeeInfo>) => void
   onSetAttributes: (attrs: Partial<ShopeeInfo['attributes']>) => void
+  onAiGenerate: () => void
 }
 
 export function ShopeeInfoSection({
   shopeeInfo,
+  aiLoading,
   onSetShopeeInfo,
   onSetAttributes,
+  onAiGenerate,
 }: ShopeeInfoSectionProps): JSX.Element {
   const titleLen = shopeeInfo.title.length
   const titleOverLimit = titleLen > 120
@@ -21,11 +25,20 @@ export function ShopeeInfoSection({
           Shopee 发布信息
         </h3>
         <button
-          disabled
-          className="px-4 py-2 bg-purple-400 text-white rounded-md text-sm font-medium
-                     opacity-50 cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+          onClick={onAiGenerate}
+          disabled={aiLoading}
+          className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium
+                     hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed
+                     transition-all duration-200 active:scale-[0.98] flex items-center gap-2"
         >
-          AI 生成功能开发中
+          {aiLoading ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              正在生成...
+            </>
+          ) : (
+            'AI 一键生成'
+          )}
         </button>
       </div>
 
