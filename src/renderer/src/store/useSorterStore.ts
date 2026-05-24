@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import type { ImageFile, ImageLabel, ProductInfo, SkuSpecRow, SkuItem, SpuData, PackagingPreset } from '../../shared/types'
+import { DEFAULT_AI_CONFIG } from '../../shared/constants'
 
 type Step = 'folder' | 'labeling' | 'info' | 'preview' | 'done'
 
@@ -191,9 +192,9 @@ export const useSorterStore = create<SorterStore>()(
 
       // AI 配置（豆包大模型默认值，开箱即用）
       aiConfig: {
-        apiKey: 'ark-83ad293a-c0eb-4f8b-82b5-d250d541c3ad-f4bfc',
-        baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-        model: 'doubao-seed-1-6-flash-250828',
+        apiKey: DEFAULT_AI_CONFIG.apiKey,
+        baseUrl: DEFAULT_AI_CONFIG.baseUrl,
+        model: DEFAULT_AI_CONFIG.model,
       },
       setAiConfig: (config) =>
         set((state) => {
@@ -202,9 +203,9 @@ export const useSorterStore = create<SorterStore>()(
       resetAiConfig: () =>
         set((state) => {
           state.aiConfig = {
-            apiKey: 'ark-83ad293a-c0eb-4f8b-82b5-d250d541c3ad-f4bfc',
-            baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-            model: 'doubao-seed-1-6-flash-250828',
+            apiKey: DEFAULT_AI_CONFIG.apiKey,
+            baseUrl: DEFAULT_AI_CONFIG.baseUrl,
+            model: DEFAULT_AI_CONFIG.model,
           }
         }),
 

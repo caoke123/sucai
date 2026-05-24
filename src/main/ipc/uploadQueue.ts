@@ -4,20 +4,17 @@ import path from 'path'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { getR2Config, createS3Client } from './r2Config'
 import type { UploadTask, UploadQueueState } from '../../shared/types'
-
-// 文件扩展名 → ContentType 映射
-const MIME_MAP: Record<string, string> = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-  '.pdf': 'application/pdf',
-  '.json': 'application/json',
-}
+import {
+  MIME_TYPE_MAP,
+  FOLDER_TO_R2_CATEGORY,
+  UPLOAD_CONCURRENCY,
+  UPLOAD_MAX_RETRIES,
+  UPLOAD_RETRY_DELAY_MS,
+} from '../../shared/constants'
 
 function getContentType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase()
-  return MIME_MAP[ext] || 'application/octet-stream'
+  return MIME_TYPE_MAP[ext] || 'application/octet-stream'
 }
 
 // 递归获取目录下所有文件（返回相对路径）
@@ -254,7 +251,7 @@ export class UploadQueueManager {
         ...emptyDirs.map((d) => ({ type: 'dir' as const, path: d })),
       ]
 
-      const concurrency = 5
+      const concurrency = UPLOAD_CONCURRENCY
       for (let i = 0; i < allUploadItems.length; i += concurrency) {
         const batch = allUploadItems.slice(i, i + concurrency)
         await Promise.all(
@@ -269,14 +266,7 @@ export class UploadQueueManager {
         task.progress = Math.round(((task.totalFiles - 1) / task.totalFiles) * 100)
         this.pushStateToRenderer()
 
-        // 文件夹名 → images 分类 key 映射
-        const FOLDER_TO_CATEGORY: Record<string, string> = {
-          '产品主图': 'main',
-          'SKU图': 'sku',
-          '详情图': 'detail',
-          '尺寸图表': 'size',
-          '产品证书': 'certificate',
-        }
+        const FOLDER_TO_CATEGORY = FOLDER_TO_R2_CATEGORY
 
         // 拼接完整 CDN URL（每段单独编码）
         const buildUrl = (key: string): string => {
@@ -368,8 +358,8 @@ export class UploadQueueManager {
       const errMsg = `${step}失败: ${(error as Error).message}`
 
       task.retryCount++
-      if (task.retryCount < 3) {
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+      if (task.retryCount < UPLOAD_MAX_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, UPLOAD_RETRY_DELAY_MS))
         task.status = 'pending'
         task.errorMessage = undefined
         this.tasks = this.tasks.filter((t) => t.taskId !== task.taskId)

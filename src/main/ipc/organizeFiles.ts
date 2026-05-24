@@ -2,15 +2,7 @@ import { ipcMain } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import type { OrganizeRequest, OrganizeResult, ProductOutput, ImageFile } from '../../shared/types'
-
-// 标签 → 文件夹名称的映射
-const LABEL_TO_FOLDER: Record<string, string> = {
-  '主图': '产品主图',
-  'SKU图': 'SKU图',
-  '详情图': '详情图',
-  '尺寸图': '尺寸图表',
-  '证书': '产品证书',
-}
+import { LABEL_TO_FOLDER, PACKAGE_SUB_FOLDERS, PACKAGE_SUFFIX, TOOL_VERSION } from '../../shared/constants'
 
 // 生成安全的文件夹名
 function safeFolderName(rawName: string): string {
@@ -46,7 +38,7 @@ export function registerOrganizeFilesHandler(): void {
       }
       const safeName = safeFolderName(folderBaseName).substring(0, 30)
       const codePrefix = productInfo.productNo ? `[${productInfo.productNo}] ` : ''
-      const packageName = `${codePrefix}${safeName}_素材包`
+      const packageName = `${codePrefix}${safeName}${PACKAGE_SUFFIX}`
       const packagePath = path.join(outputFolderPath, packageName)
 
       // 如果目标文件夹已存在，先删除（覆盖重新生成）
@@ -55,8 +47,7 @@ export function registerOrganizeFilesHandler(): void {
       }
 
       // 创建所有子文件夹（包括空的产品视频文件夹）
-      const subFolders = ['产品主图', 'SKU图', '详情图', '尺寸图表', '产品证书', '产品视频']
-      for (const folder of subFolders) {
+      for (const folder of PACKAGE_SUB_FOLDERS) {
         fs.mkdirSync(path.join(packagePath, folder), { recursive: true })
       }
 
@@ -82,7 +73,7 @@ export function registerOrganizeFilesHandler(): void {
           let newFileName: string
 
           if (label === 'SKU图' && image.skuSpec) {
-            newFileName = getUniqueFileName(destDir, `sku_${image.skuSpec}`, image.fileExt)
+            newFileName = getUniqueFileName(destDir, `${image.skuSpec}`, image.fileExt)
           } else {
             const labelName = label.replace('图', '')
             newFileName = `${labelName}_${count}${image.fileExt}`
@@ -92,7 +83,7 @@ export function registerOrganizeFilesHandler(): void {
         })
       }
 
-      // 生成 product.json（新版格式）
+      // 生成 product.json
       const productOutput: ProductOutput = {
         title: productInfo.title,
         productNo: productInfo.productNo || '',
@@ -115,7 +106,7 @@ export function registerOrganizeFilesHandler(): void {
           image: path.basename(sku.imagePath || ''),
         })),
         createdAt: new Date().toISOString(),
-        toolVersion: '1.2.0',
+        toolVersion: TOOL_VERSION,
       }
 
       const jsonPath = path.join(packagePath, 'product.json')

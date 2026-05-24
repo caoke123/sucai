@@ -3,25 +3,23 @@ import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
 import type { ScanFolderResult, ImageFile } from '../../shared/types'
+import { IMAGE_EXTENSIONS, THUMBNAIL_SIZE } from '../../shared/constants'
 
-// 支持的图片格式
-const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff'])
+const IMAGE_EXT_SET = new Set(IMAGE_EXTENSIONS)
 
 export function registerScanFolderHandler(): void {
   ipcMain.handle('scan-folder', async (_event, folderPath: string): Promise<ScanFolderResult> => {
     try {
-      // 读取文件夹内所有文件
       const allFiles = fs.readdirSync(folderPath)
       const imageFiles = allFiles.filter((fileName) => {
         const ext = path.extname(fileName).toLowerCase()
-        return IMAGE_EXTENSIONS.has(ext)
+        return IMAGE_EXT_SET.has(ext)
       })
 
       if (imageFiles.length === 0) {
         return { success: true, images: [] }
       }
 
-      // 并发生成所有图片的缩略图（每次最多并发 5 张，避免内存溢出）
       const results: ImageFile[] = []
       const chunkSize = 5
 
@@ -34,10 +32,9 @@ export function registerScanFolderHandler(): void {
             const globalIndex = i + chunkIndex
 
             try {
-              // 生成 200x200 缩略图，JPEG 格式，质量 75
               const thumbBuffer = await sharp(filePath)
-                .resize(200, 200, { fit: 'cover', position: 'centre' })
-                .jpeg({ quality: 75 })
+                .resize(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, { fit: 'cover', position: 'centre' })
+                .jpeg({ quality: THUMBNAIL_SIZE.quality })
                 .toBuffer()
 
               const imageFile: ImageFile = {
@@ -50,7 +47,6 @@ export function registerScanFolderHandler(): void {
               }
               return imageFile
             } catch {
-              // 单张图片处理失败时跳过，不中断整体流程
               console.warn(`跳过无法处理的文件: ${fileName}`)
               return null
             }

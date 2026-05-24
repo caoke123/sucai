@@ -1,47 +1,28 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSorterStore } from '../store/useSorterStore'
+import {
+  CATEGORY_CODE_MAP,
+  STYLE_CODE_MAP,
+  STYLE_KEYWORD_MAP,
+  INVALID_FILENAME_BLACKLIST,
+  MEANINGLESS_NAME_REGEX,
+  DEFAULT_AI_CONFIG,
+} from '../../../shared/constants'
 
-// 货源类目编码表
-const CATEGORY_MAP: Record<string, string> = {
-  '包包挂件': 'BG',
-  '手机挂件': 'PH',
-  '车内配饰': 'CR',
-  '毛绒玩具': 'TO',
-}
-
-const CATEGORY_OPTIONS = Object.entries(CATEGORY_MAP).map(([name, code]) => ({ code, name }))
-
-// 风格/颜色系编码表
-const STYLE_MAP: Record<string, string> = {
-  '白色系': 'WT',
-  '棕色系': 'BR',
-  '红色系': 'RD',
-  '彩虹系': 'RB',
-  '奶油风': 'CR',
-  '黑色系': 'BK',
-  '混色/其他': 'MX',
-}
+// 货源类目选项
+const CATEGORY_OPTIONS = Object.entries(CATEGORY_CODE_MAP).map(([name, code]) => ({ code, name }))
 
 // 根据颜色/风格名称模糊匹配风格编码
 const getStyleCode = (detectedStyleOrColor: string): string => {
   if (!detectedStyleOrColor) return 'MX'
 
-  for (const [name, code] of Object.entries(STYLE_MAP)) {
+  for (const [name, code] of Object.entries(STYLE_CODE_MAP)) {
     if (detectedStyleOrColor.includes(name) || name.includes(detectedStyleOrColor)) {
       return code
     }
   }
 
-  const keywordMap: Record<string, string> = {
-    '白': 'WT', 'white': 'WT', '银': 'WT',
-    '棕': 'BR', '褐': 'BR', '啡': 'BR', '咖': 'BR', 'brown': 'BR',
-    '红': 'RD', '粉': 'RD', '桃': 'RD', 'pink': 'RD', 'red': 'RD',
-    '彩': 'RB', '虹': 'RB', '花': 'RB', 'rainbow': 'RB',
-    '奶': 'CR', '米': 'CR', '黄': 'CR', 'cream': 'CR',
-    '黑': 'BK', '灰': 'BK', 'black': 'BK',
-  }
-
-  for (const [key, code] of Object.entries(keywordMap)) {
+  for (const [key, code] of Object.entries(STYLE_KEYWORD_MAP)) {
     if (detectedStyleOrColor.toLowerCase().includes(key)) {
       return code
     }
@@ -52,9 +33,9 @@ const getStyleCode = (detectedStyleOrColor: string): string => {
 
 // 根据类目名称或编码获取编码
 const getCategoryCode = (categoryNameOrCode: string): string => {
-  const codes = Object.values(CATEGORY_MAP)
+  const codes = Object.values(CATEGORY_CODE_MAP)
   if (codes.includes(categoryNameOrCode)) return categoryNameOrCode
-  return CATEGORY_MAP[categoryNameOrCode] || 'XX'
+  return CATEGORY_CODE_MAP[categoryNameOrCode] || 'XX'
 }
 
 // 常用中文字符 → 拼音首字母映射
@@ -114,17 +95,7 @@ function isInvalidFilename(name: string): boolean {
   // 纯数字 / 纯数字+下划线+减号（时间戳等）
   if (/^[\d_-]+$/.test(lower)) return true
 
-  const blacklist = [
-    '微信', 'wechat', 'qq', '钉钉', 'dingtalk',
-    'img_', 'dsc_', 'pxl_', 'dcim', 'screenshot', '屏幕截图', '截屏',
-    'batch', 'chatgpt', 'chat gpt', 'midjourney', 'mj_',
-    'dall', 'sd_', 'stable_diffusion', 'stable diffusion',
-    '未命名', 'untitled', '新建', 'temp', 'tmp',
-    'image', 'picture', 'photo', 'pic', '下载', 'download',
-    '草图', '无标题', '画板',
-  ]
-
-  return blacklist.some((kw) => lower.includes(kw.toLowerCase()))
+  return INVALID_FILENAME_BLACKLIST.some((kw) => lower.includes(kw.toLowerCase()))
 }
 
 // 判断文件名是否无意义（纯数字/相机默认/随机哈希等）
@@ -132,19 +103,7 @@ function isMeaninglessName(fileName: string): boolean {
   if (!fileName) return true
   const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName
 
-  const pureNumberReg = /^\d+$/
-  const cameraReg = /^(img|dsc|image|pic)_?\d+/i
-  const uuidReg = /^[a-fA-F0-9-]{8,}$/
-  const randomStrReg = /^[a-zA-Z]{8,}$/
-  const cdnReg = /^O1CN|TB|wx_camera_/i
-
-  return (
-    pureNumberReg.test(nameWithoutExt) ||
-    cameraReg.test(nameWithoutExt) ||
-    uuidReg.test(nameWithoutExt) ||
-    randomStrReg.test(nameWithoutExt) ||
-    cdnReg.test(nameWithoutExt)
-  )
+  return MEANINGLESS_NAME_REGEX.some((regex) => regex.test(nameWithoutExt))
 }
 
 // 从文件名智能提取 SKU 规格名（有意义文件名 → 净化后返回，无意义 → null）

@@ -11,6 +11,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { readFile, writeFile, access } from 'fs/promises'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { DEFAULT_AI_CONFIG, IMAGE_COMPRESSION } from '../shared/constants'
 import { registerSelectDirectoryHandler } from './ipc/selectDirectory'
 import { registerScanFolderHandler } from './ipc/scanFolder'
 import { registerOrganizeFilesHandler } from './ipc/organizeFiles'
@@ -22,11 +23,7 @@ import { UploadQueueManager, registerUploadQueueHandlers } from './ipc/uploadQue
 let aiConfigPath = ''
 
 // AI 配置的默认值
-const defaultAiConfig = {
-  apiKey: '',
-  baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-  model: 'doubao-seed-1-6-flash-250828',
-}
+const defaultAiConfig = { ...DEFAULT_AI_CONFIG }
 
 // 读取 AI 配置
 async function loadAiConfig(): Promise<typeof defaultAiConfig> {
