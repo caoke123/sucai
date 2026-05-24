@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useSorterStore } from '../store/useSorterStore'
 import { useFileSystem } from '../hooks/useFileSystem'
+import { validateProduct } from '@shared/validation'
+import type { ValidationContext } from '@shared/validation'
 import type { ImageFile, ProductOutput } from '@shared/types'
 
-// 标签 → 文件夹名称映射
 const LABEL_TO_FOLDER: Record<string, string> = {
   '主图':   '产品主图',
   'SKU图':  'SKU图',
@@ -23,6 +24,7 @@ export function PreviewPanel(): JSX.Element {
     currentSpu,
     packagingPresets,
     selectedPresetId,
+    shopeeInfo,
     setOutputPath,
     setStep,
     isLoading,
@@ -33,16 +35,49 @@ export function PreviewPanel(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [showJson, setShowJson] = useState(false)
 
-  // 生成安全的文件夹名（[编号] 短标题_素材包）
+  // 构建校验上下文
+  const validationCtx: ValidationContext = useMemo(() => {
+    const mainCount = images.filter((img) => img.labels.includes('主图')).length
+    const skuImages = images.filter((img) => img.labels.includes('SKU图'))
+    const skuCount = skuImages.length
+    const skuWithNameCount = skuImages.filter((img) => img.skuSpec && img.skuSpec.trim()).length
+
+    return {
+      shopeeInfo: {
+        title: shopeeInfo?.title || '',
+        descriptionText: shopeeInfo?.descriptionText || '',
+        attributes: { material: shopeeInfo?.attributes?.material || '' },
+      },
+      skus: (skuList || []).map((sku) => ({
+        skuName: sku.colorName || '',
+        sellingPrice: sku.sellingPrice ?? 0,
+        stock: sku.stock ?? 0,
+      })),
+      images: { mainCount, skuCount, skuWithNameCount },
+    }
+  }, [images, skuList, shopeeInfo])
+
+  // 执行校验 (memo)
+  const validation = useMemo(() => validateProduct(validationCtx), [validationCtx])
+
+  const hasErrors = useMemo(
+    () => validation.issues.some((i) => i.level === 'error'),
+    [validation.issues]
+  )
+  const hasWarnings = useMemo(
+    () => validation.issues.some((i) => i.level === 'warning'),
+    [validation.issues]
+  )
+
+  // 文件夹命名预览
   const folderBaseName = shortTitle?.trim() || productInfo.title.replace(/\s/g, '').substring(0, 10)
   const safeName = folderBaseName.replace(/[\\/:*?"<>|]/g, '_').trim().substring(0, 30)
   const codePrefix = productInfo.productNo ? `[${productInfo.productNo}] ` : ''
   const packageName = `${codePrefix}${safeName}_素材包` || '未命名_素材包'
 
-  // 按标签分组并模拟重命名（支持多标签）
+  // 按标签分组模拟重命名
   const renamedImages: Record<string, string[]> = {}
   const groupedByLabel: Record<string, ImageFile[]> = {}
-
   for (const img of images) {
     for (const label of img.labels) {
       if (label === '未分类') continue
@@ -50,7 +85,6 @@ export function PreviewPanel(): JSX.Element {
       groupedByLabel[label].push(img)
     }
   }
-
   for (const [label, labelImages] of Object.entries(groupedByLabel)) {
     renamedImages[label] = labelImages.map((img, index) => {
       const count = index + 1
@@ -62,7 +96,7 @@ export function PreviewPanel(): JSX.Element {
     })
   }
 
-  // 构建 JSON 预览（新版格式）
+  // product.json 预览
   const previewJson: ProductOutput = {
     title: productInfo.title,
     productNo: productInfo.productNo,
@@ -73,8 +107,7 @@ export function PreviewPanel(): JSX.Element {
       width: currentSpu?.outerPackWidth ?? null,
       height: currentSpu?.outerPackHeight ?? null,
       weight: currentSpu?.outerPackWeight ?? null,
-      presetName:
-        packagingPresets.find((p) => p.id === selectedPresetId)?.name || '',
+      presetName: packagingPresets.find((p) => p.id === selectedPresetId)?.name || '',
     },
     skus: (skuList || []).map((sku) => ({
       skuCode: sku.skuCode,
@@ -86,18 +119,19 @@ export function PreviewPanel(): JSX.Element {
       image: sku.imagePath ? sku.imagePath.replace(/^.*[\\/]/, '') : '',
     })),
     createdAt: new Date().toISOString(),
-    toolVersion: '1.2.0',
+    toolVersion: '4.0.0-beta.1',
   }
 
-  // 统计信息
   const totalImages = images.filter((i) => i.labels.some((l) => l !== '未分类')).length
-  const labelStats: Record<string, number> = {}
-  for (const [label] of Object.entries(renamedImages)) {
-    labelStats[label] = renamedImages[label]?.length || 0
-  }
 
-  // 开始整理并导出
+  // SKU 汇总
+  const skuTotalStock = (skuList || []).reduce((sum, s) => sum + (s.stock || 0), 0)
+  const skuMinPrice = skuList.length > 0 ? Math.min(...skuList.map((s) => s.sellingPrice || 0)) : 0
+  const skuMaxPrice = skuList.length > 0 ? Math.max(...skuList.map((s) => s.sellingPrice || 0)) : 0
+
+  // 导出操作
   const handleOrganize = async (): Promise<void> => {
+    if (hasErrors) return
     setLoading(true)
     setError(null)
     try {
@@ -113,8 +147,7 @@ export function PreviewPanel(): JSX.Element {
           width: currentSpu?.outerPackWidth ?? 0,
           height: currentSpu?.outerPackHeight ?? 0,
           weight: currentSpu?.outerPackWeight ?? 0,
-          presetName:
-            packagingPresets.find((p) => p.id === selectedPresetId)?.name || '',
+          presetName: packagingPresets.find((p) => p.id === selectedPresetId)?.name || '',
         },
       })
       if (!result.success) {
@@ -128,6 +161,15 @@ export function PreviewPanel(): JSX.Element {
     } finally {
       setLoading(false)
     }
+  }
+
+  // 点击校验项 → 返回 Step3 并定位
+  const handleFixError = (): void => {
+    setStep('info')
+    setTimeout(() => {
+      const el = document.querySelector('[data-field="shopee.title"]')
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 100)
   }
 
   return (
@@ -162,6 +204,54 @@ export function PreviewPanel(): JSX.Element {
           </div>
         )}
 
+        {/* ===== 校验面板 ===== */}
+        {!validation.valid && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-md font-medium text-red-700 flex items-center gap-2">
+                <span className="text-lg">⚠</span>
+                存在错误项，请修复后再导出
+              </h3>
+              <button
+                onClick={handleFixError}
+                className="px-4 py-1.5 bg-red-600 text-white rounded-md text-sm font-medium
+                           hover:bg-red-700 transition-colors duration-150"
+              >
+                返回上一步修复
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {validation.issues
+                .filter((i) => i.level === 'error')
+                .map((issue, idx) => (
+                  <div key={idx} className="flex items-start gap-2 text-sm text-red-600">
+                    <span className="mt-0.5 shrink-0">✗</span>
+                    <span>{issue.message}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {validation.valid && hasWarnings && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h3 className="text-md font-medium text-yellow-700 flex items-center gap-2 mb-2">
+              <span className="text-lg">⚡</span>
+              建议优化项
+            </h3>
+            <div className="space-y-1">
+              {validation.issues
+                .filter((i) => i.level === 'warning')
+                .map((issue, idx) => (
+                  <div key={idx} className="flex items-start gap-2 text-sm text-yellow-600">
+                    <span className="mt-0.5 shrink-0">!</span>
+                    <span>{issue.message}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-6">
           {/* 左侧：目录树预览 */}
           <div className="bg-white rounded-lg border border-[var(--color-border)] p-5">
@@ -169,28 +259,20 @@ export function PreviewPanel(): JSX.Element {
               即将生成的目录结构
             </h3>
             <div className="font-mono text-sm space-y-1">
-              {/* 根目录 */}
               <div className="flex items-center gap-1.5 text-[var(--color-text-primary)] font-medium">
                 <svg className="w-4 h-4 text-yellow-500 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
                 </svg>
                 {packageName}/
               </div>
-
-              {/* product.json */}
               <div className="ml-5 flex items-center gap-1.5">
                 <svg className="w-4 h-4 text-blue-400 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6z"/>
                 </svg>
-                <button
-                  onClick={() => setShowJson(!showJson)}
-                  className="text-blue-600 hover:underline text-sm"
-                >
+                <button onClick={() => setShowJson(!showJson)} className="text-blue-600 hover:underline text-sm">
                   product.json {showJson ? '▲' : '▼'}
                 </button>
               </div>
-
-              {/* JSON 展开内容 */}
               {showJson && (
                 <div className="ml-10 mb-2 p-3 bg-gray-50 rounded border border-[var(--color-border)] text-xs overflow-x-auto">
                   <pre className="text-[var(--color-text-secondary)] whitespace-pre">
@@ -198,8 +280,6 @@ export function PreviewPanel(): JSX.Element {
                   </pre>
                 </div>
               )}
-
-              {/* 子文件夹 */}
               {(['产品主图', 'SKU图', '详情图', '尺寸图表', '产品证书'] as const).map((folder) => {
                 const labelKey = Object.entries(LABEL_TO_FOLDER).find(([, v]) => v === folder)?.[0] || ''
                 const files = renamedImages[labelKey] || []
@@ -210,9 +290,7 @@ export function PreviewPanel(): JSX.Element {
                         <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
                       </svg>
                       {folder}/
-                      <span className="text-xs text-[var(--color-text-tertiary)]">
-                        ({files.length} 个文件)
-                      </span>
+                      <span className="text-xs text-[var(--color-text-tertiary)]">({files.length} 个文件)</span>
                     </div>
                     {files.map((f) => (
                       <div key={f} className="ml-10 flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)]">
@@ -225,8 +303,6 @@ export function PreviewPanel(): JSX.Element {
                   </div>
                 )
               })}
-
-              {/* 产品视频（空文件夹） */}
               <div className="ml-5 flex items-center gap-1.5 text-[var(--color-text-tertiary)]">
                 <svg className="w-4 h-4 text-yellow-500 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
@@ -236,15 +312,14 @@ export function PreviewPanel(): JSX.Element {
             </div>
           </div>
 
-          {/* 右侧：数据摘要 */}
+          {/* 右侧：数据摘要 + Shopee + SKU 汇总 */}
           <div className="space-y-4">
+            {/* 产品数据摘要 */}
             <div className="bg-white rounded-lg border border-[var(--color-border)] p-5">
-              <h3 className="text-md font-medium text-[var(--color-text-primary)] mb-4">
-                产品数据摘要
-              </h3>
+              <h3 className="text-md font-medium text-[var(--color-text-primary)] mb-4">产品数据摘要</h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-[var(--color-text-secondary)]">导出目标路径</span>
+                  <span className="text-[var(--color-text-secondary)]">目标路径</span>
                   <span className="text-[var(--color-text-primary)] font-mono text-xs truncate max-w-[220px]" title={outputFolderPath}>
                     {outputFolderPath || '未设置'}
                   </span>
@@ -256,37 +331,58 @@ export function PreviewPanel(): JSX.Element {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[var(--color-text-secondary)]">规格总数</span>
-                  <span className="text-[var(--color-text-primary)]">
-                    {productInfo.skuSpecs.length} 组合
-                  </span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-[var(--color-text-secondary)]">图片总数</span>
                   <span className="text-[var(--color-text-primary)]">{totalImages} 张</span>
-                </div>
-                <div className="border-t border-[var(--color-border)] pt-3 space-y-1.5">
-                  {Object.entries(labelStats).map(([label, count]) => (
-                    <div key={label} className="flex justify-between text-xs">
-                      <span className="text-[var(--color-text-tertiary)]">{label}</span>
-                      <span className="text-[var(--color-text-secondary)]">{count} 张</span>
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>
 
-            {/* JSON 预览卡片 */}
+            {/* Shopee 信息预览 */}
             <div className="bg-white rounded-lg border border-[var(--color-border)] p-5">
-              <h4 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                product.json 预览
-              </h4>
-              <div className="bg-gray-50 rounded border border-[var(--color-border)] p-3 text-xs overflow-auto max-h-48">
-                <pre className="text-[var(--color-text-secondary)] whitespace-pre">
-                  {JSON.stringify(previewJson, null, 2)}
-                </pre>
+              <h3 className="text-md font-medium text-[var(--color-text-primary)] mb-3">Shopee 发布信息</h3>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">英文标题</span>
+                  <p className="text-[var(--color-text-primary)] break-words">
+                    {shopeeInfo?.title || <span className="text-[var(--color-text-tertiary)] italic">未填写</span>}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">英文描述</span>
+                  <p className="text-[var(--color-text-secondary)] break-words line-clamp-2">
+                    {shopeeInfo?.descriptionText || <span className="text-[var(--color-text-tertiary)] italic">未填写</span>}
+                  </p>
+                </div>
+                <div className="flex gap-4 text-xs text-[var(--color-text-tertiary)]">
+                  <span>品牌: {shopeeInfo?.attributes?.brand || '-'}</span>
+                  <span>产地: {shopeeInfo?.attributes?.origin || '-'}</span>
+                  <span>材质: {shopeeInfo?.attributes?.material || '-'}</span>
+                </div>
               </div>
             </div>
+
+            {/* SKU 汇总 */}
+            {skuList.length > 0 && (
+              <div className="bg-white rounded-lg border border-[var(--color-border)] p-5">
+                <h3 className="text-md font-medium text-[var(--color-text-primary)] mb-3">SKU 汇总</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-[var(--color-text-secondary)]">SKU 数量</span>
+                    <span className="text-[var(--color-text-primary)]">{skuList.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--color-text-secondary)]">库存总数</span>
+                    <span className="text-[var(--color-text-primary)]">{skuTotalStock}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--color-text-secondary)]">售价范围</span>
+                    <span className="text-[var(--color-text-primary)]">
+                      ¥{skuMinPrice} ~ ¥{skuMaxPrice}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -295,19 +391,19 @@ export function PreviewPanel(): JSX.Element {
           <button
             onClick={() => setStep('info')}
             className="px-5 py-2.5 border border-[var(--color-border)] text-[var(--color-text-secondary)]
-                       rounded-md text-sm font-medium hover:bg-gray-50
-                       transition-colors duration-150"
+                       rounded-md text-sm font-medium hover:bg-gray-50 transition-colors duration-150"
           >
             ← 上一步：填写信息
           </button>
           <button
             onClick={handleOrganize}
-            disabled={isLoading}
+            disabled={isLoading || hasErrors}
             className="px-6 py-2.5 bg-[var(--color-success)] text-white rounded-md text-sm font-medium
                        hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed
                        transition-colors duration-150"
+            title={hasErrors ? '请先修复错误项' : '开始导出'}
           >
-            {isLoading ? '正在导出...' : '开始整理并导出素材包 →'}
+            {hasErrors ? '请先修复错误项' : isLoading ? '正在导出...' : '开始整理并导出素材包 →'}
           </button>
         </div>
       </div>
