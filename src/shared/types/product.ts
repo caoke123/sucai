@@ -1,4 +1,7 @@
 import type { ImageFile } from './image'
+import type { ShopeeInfo } from './shopee'
+import type { R2Metadata } from './r2'
+import type { PimExtension } from './pim'
 
 // ==================== 产品基础信息 ====================
 
@@ -33,8 +36,11 @@ export interface ProductOutput {
   skus: SkuOutput[]
   createdAt: string
   toolVersion: string
-  // v4 扩展字段（可选，向后兼容 v3）
+  // v4 扩展字段
   localPath?: string
+  shopee?: ShopeeInfo
+  r2?: R2Metadata
+  pim?: PimExtension
 }
 
 export interface OuterPackaging {
@@ -75,6 +81,7 @@ export interface OrganizeRequest {
     weight: number
     presetName: string
   }
+  shopeeInfo?: ShopeeInfo
 }
 
 export interface OrganizeResult {

@@ -630,6 +630,7 @@ export function ProductForm(): JSX.Element {
             productInfo: st.productInfo,
             shortTitle: st.shortTitle,
             skuList: st.skuList,
+            shopeeInfo: st.shopeeInfo,
             outerPackaging: {
               length: spu?.outerPackLength ?? 0,
               width: spu?.outerPackWidth ?? 0,

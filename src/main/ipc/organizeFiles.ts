@@ -7,13 +7,12 @@ import { buildProductJsonData, writeProductJson } from '../services/export/build
 export function registerOrganizeFilesHandler(): void {
   ipcMain.handle('organize-files', async (_event, payload: OrganizeRequest): Promise<OrganizeResult> => {
     try {
-      const { outputFolderPath, images, productInfo, shortTitle, skuList, outerPackaging } = payload
+      const { outputFolderPath, images, productInfo, shortTitle, skuList, outerPackaging, shopeeInfo } = payload
 
       if (!outputFolderPath) {
         return { success: false, error: '输出目录路径不能为空' }
       }
 
-      // 生成文件夹结构
       const { packagePath } = generateFolderStructure(
         outputFolderPath,
         productInfo.productNo,
@@ -21,14 +20,14 @@ export function registerOrganizeFilesHandler(): void {
         productInfo.title
       )
 
-      // 复制并重命名图片
       renameAndCopyImages(packagePath, images)
 
-      // 生成 product.json
       const productData = buildProductJsonData({
         productInfo,
         skuList: skuList || [],
         outerPackaging,
+        shopeeInfo,
+        localPackagePath: packagePath,
       })
       writeProductJson(packagePath, productData)
 

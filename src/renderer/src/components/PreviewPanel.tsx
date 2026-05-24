@@ -96,31 +96,53 @@ export function PreviewPanel(): JSX.Element {
     })
   }
 
-  // product.json 预览
-  const previewJson: ProductOutput = {
-    title: productInfo.title,
-    productNo: productInfo.productNo,
-    category: productInfo.category,
-    description: productInfo.description,
-    outerPackaging: {
-      length: currentSpu?.outerPackLength ?? null,
-      width: currentSpu?.outerPackWidth ?? null,
-      height: currentSpu?.outerPackHeight ?? null,
-      weight: currentSpu?.outerPackWeight ?? null,
-      presetName: packagingPresets.find((p) => p.id === selectedPresetId)?.name || '',
-    },
-    skus: (skuList || []).map((sku) => ({
-      skuCode: sku.skuCode,
-      skuName: sku.colorName,
-      size: sku.dimensions || '',
-      weight: sku.weight ?? 0,
-      costPrice: sku.costPrice ?? 0,
-      sellingPrice: sku.sellingPrice ?? 0,
-      image: sku.imagePath ? sku.imagePath.replace(/^.*[\\/]/, '') : '',
-    })),
-    createdAt: new Date().toISOString(),
-    toolVersion: '4.0.0-beta.1',
-  }
+  // product.json 预览 (v4 structure)
+  const previewJson = useMemo(() => {
+    const pkgName = packageName
+    const pkgPath = outputFolderPath
+      ? `${outputFolderPath.replace(/\\/g, '/')}/${pkgName}`
+      : ''
+
+    return {
+      title: productInfo.title,
+      productNo: productInfo.productNo,
+      category: productInfo.category,
+      description: productInfo.description,
+      outerPackaging: {
+        length: currentSpu?.outerPackLength ?? null,
+        width: currentSpu?.outerPackWidth ?? null,
+        height: currentSpu?.outerPackHeight ?? null,
+        weight: currentSpu?.outerPackWeight ?? null,
+        presetName: packagingPresets.find((p) => p.id === selectedPresetId)?.name || '',
+      },
+      skus: (skuList || []).map((sku) => ({
+        skuCode: sku.skuCode,
+        skuName: sku.colorName,
+        size: sku.dimensions || '',
+        weight: sku.weight ?? 0,
+        costPrice: sku.costPrice ?? 0,
+        sellingPrice: sku.sellingPrice ?? 0,
+        stock: sku.stock ?? 0,
+        skuNameEn: sku.skuNameEn || '',
+        image: sku.imagePath ? sku.imagePath.replace(/^.*[\\/]/, '') : '',
+      })),
+      createdAt: new Date().toISOString(),
+      toolVersion: '4.0.0-beta.1',
+      localPath: pkgPath,
+      shopee: shopeeInfo ? {
+        title: shopeeInfo.title || '',
+        descriptionText: shopeeInfo.descriptionText || '',
+        attributes: {
+          brand: shopeeInfo.attributes?.brand || 'No Brand',
+          origin: shopeeInfo.attributes?.origin || 'China',
+          material: shopeeInfo.attributes?.material || '',
+          size: shopeeInfo.attributes?.size || '',
+        },
+        leadTime: shopeeInfo.leadTime ?? 5,
+      } : undefined,
+      pim: { syncedAt: null, status: 'draft' as const },
+    }
+  }, [productInfo, skuList, currentSpu, packagingPresets, selectedPresetId, shopeeInfo, packageName, outputFolderPath])
 
   const totalImages = images.filter((i) => i.labels.some((l) => l !== '未分类')).length
 
@@ -142,6 +164,7 @@ export function PreviewPanel(): JSX.Element {
         productInfo,
         shortTitle,
         skuList: skuList || [],
+        shopeeInfo,
         outerPackaging: {
           length: currentSpu?.outerPackLength ?? 0,
           width: currentSpu?.outerPackWidth ?? 0,
