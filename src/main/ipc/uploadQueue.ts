@@ -9,6 +9,7 @@ import {
   UPLOAD_CONCURRENCY,
   UPLOAD_MAX_RETRIES,
   UPLOAD_RETRY_DELAY_MS,
+  FOLDER_TO_R2_CATEGORY,
 } from '@shared/constants'
 import { buildR2Metadata } from '../services/export/buildR2Metadata'
 import { validateR2Config } from '../services/config/validateConfig'
@@ -18,7 +19,6 @@ function getContentType(filePath: string): string {
   return MIME_TYPE_MAP[ext] || 'application/octet-stream'
 }
 
-// 递归获取目录下所有文件（返回相对路径）
 function getAllFiles(dirPath: string, basePath: string): string[] {
   const results: string[] = []
   const entries = fs.readdirSync(dirPath, { withFileTypes: true })
@@ -34,24 +34,20 @@ function getAllFiles(dirPath: string, basePath: string): string[] {
   return results
 }
 
-// 递归获取目录下所有空文件夹（不含文件的目录）
 function getEmptyDirs(dirPath: string, basePath: string): string[] {
   const results: string[] = []
   const entries = fs.readdirSync(dirPath, { withFileTypes: true })
   let hasFiles = false
-  let hasSubDirs = false
 
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name)
     if (entry.isDirectory()) {
-      hasSubDirs = true
       results.push(...getEmptyDirs(fullPath, basePath))
     } else {
       hasFiles = true
     }
   }
 
-  // 当前目录没有文件时，自身即为"空目录"
   if (!hasFiles) {
     const relativePath = path.relative(basePath, dirPath)
     if (relativePath) {
@@ -59,11 +55,32 @@ function getEmptyDirs(dirPath: string, basePath: string): string[] {
     }
   }
 
-  // 即使有子目录，也要检查当前目录是否有文件
-  // 如果没有文件但子目录不是空目录，仍需要占位
-  // 但如果子目录也是空的，父目录需要同时保留
-  // 这里简化：只要当前目录无文件就加占位
   return results
+}
+
+function logUploadSummary(
+  uploadedPaths: Array<{ relativePath: string; s3Key: string }>,
+  folderName: string,
+): void {
+  const counts: Record<string, number> = { main: 0, sku: 0, detail: 0, size: 0, certificate: 0, unknown: 0 }
+
+  for (const p of uploadedPaths) {
+    const parts = p.relativePath.replace(/\\/g, '/').split('/')
+    if (parts.length < 2) continue
+    const dir = parts[0]
+    const cat = FOLDER_TO_R2_CATEGORY[dir] || 'unknown'
+    counts[cat] = (counts[cat] || 0) + 1
+  }
+
+  console.log(`
+[R2 Upload Summary] ${folderName}
+  main:        ${counts.main} files
+  sku:         ${counts.sku} files
+  detail:      ${counts.detail} files
+  size:        ${counts.size} files
+  certificate: ${counts.certificate} files
+  unknown:     ${counts.unknown} files
+  total:       ${Object.values(counts).reduce((a, b) => a + b, 0)} files`)
 }
 
 export class UploadQueueManager {
@@ -71,27 +88,20 @@ export class UploadQueueManager {
   private isProcessing = false
   private mainWindow: BrowserWindow | null = null
 
-  // 设置主窗口引用
   setWindow(win: BrowserWindow): void {
     this.mainWindow = win
   }
 
-  // 推送当前状态到渲染进程
   private pushStateToRenderer(): void {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send('upload-queue-update', this.getQueueState())
     }
   }
 
-  // 获取队列状态
   getQueueState(): UploadQueueState {
-    return {
-      tasks: [...this.tasks],
-      isProcessing: this.isProcessing,
-    }
+    return { tasks: [...this.tasks], isProcessing: this.isProcessing }
   }
 
-  // 加入任务
   addTask(task: Omit<UploadTask, 'status' | 'progress' | 'totalFiles' | 'uploadedFiles' | 'retryCount' | 'createdAt'>): void {
     const config = getR2Config()
     const validation = validateR2Config(config)
@@ -99,7 +109,6 @@ export class UploadQueueManager {
       throw new Error(validation.message)
     }
 
-    // 统计文件数 + 空目录数
     const files = getAllFiles(task.localPackagePath, task.localPackagePath)
     const emptyDirs = getEmptyDirs(task.localPackagePath, task.localPackagePath)
     const totalFiles = files.length + emptyDirs.length
@@ -122,7 +131,6 @@ export class UploadQueueManager {
     this.processNext()
   }
 
-  // 重试失败任务
   retryTask(taskId: string): void {
     const task = this.tasks.find((t) => t.taskId === taskId)
     if (task && task.status === 'failed') {
@@ -134,19 +142,16 @@ export class UploadQueueManager {
     }
   }
 
-  // 移除任务（仅 done 或 failed ）
   removeTask(taskId: string): void {
     this.tasks = this.tasks.filter((t) => t.taskId !== taskId || (t.status !== 'done' && t.status !== 'failed'))
     this.pushStateToRenderer()
   }
 
-  // 清除已完成
   clearCompleted(): void {
     this.tasks = this.tasks.filter((t) => t.status !== 'done')
     this.pushStateToRenderer()
   }
 
-  // 处理下一个 pending 任务
   private async processNext(): Promise<void> {
     if (this.isProcessing) return
     const task = this.tasks.find((t) => t.status === 'pending')
@@ -166,13 +171,11 @@ export class UploadQueueManager {
     }
   }
 
-  // 上传单个产品素材包
   private async uploadProduct(task: UploadTask): Promise<void> {
     const config = getR2Config()
     const client = createS3Client(config)
     const basePath = task.localPackagePath
 
-    // 构建 CDN 基础 URL
     const accountId = config.endpoint.replace('https://', '').replace('.r2.cloudflarestorage.com', '')
     const baseUrl = config.customDomain || `https://${config.bucket}.${accountId}.r2.cloudflarestorage.com`
     const encodedFolder = encodeURIComponent(task.folderName)
@@ -187,7 +190,8 @@ export class UploadQueueManager {
       const productJsonFile = allFiles.find((f) => f === 'product.json' || f.endsWith('/product.json'))
       const otherFiles = allFiles.filter((f) => f !== productJsonFile)
 
-      // 读取本地 product.json 原始内容
+      console.log(`[R2 Upload] 扫描完成: ${allFiles.length} 个文件, ${emptyDirs.length} 个空目录, 文件夹: ${task.folderName}`)
+
       let originalJson: Record<string, unknown> = {}
       if (productJsonFile) {
         try {
@@ -198,20 +202,20 @@ export class UploadQueueManager {
         }
       }
 
-      // 检查是否已存在 r2 字段（重试场景）
       const alreadyHasR2 = !!originalJson.r2
 
-      // totalFiles = 图片文件 + 空目录 + product.json
       task.totalFiles = otherFiles.length + emptyDirs.length + 1
       this.pushStateToRenderer()
 
-      // ===== Step 2: 并发上传图片和空目录 =====
+      // ===== Step 2: 并发上传所有文件 =====
       const uploadedPaths: Array<{ relativePath: string; s3Key: string }> = []
 
-      // 上传单个文件的通用函数
       const uploadFile = async (relativePath: string): Promise<void> => {
         const fullPath = path.join(basePath, relativePath)
-        const s3Key = `products/${task.folderName}/${relativePath.replace(/\\/g, '/')}`
+        const normalizedPath = relativePath.replace(/\\/g, '/')
+        const s3Key = `products/${task.folderName}/${normalizedPath}`
+
+        console.log(`[R2 Upload] ${normalizedPath} -> ${s3Key}`)
 
         const fileBuffer = fs.readFileSync(fullPath)
 
@@ -230,9 +234,9 @@ export class UploadQueueManager {
         this.pushStateToRenderer()
       }
 
-      // 上传空目录占位
       const uploadEmptyDir = async (relativePath: string): Promise<void> => {
-        const dirKey = `products/${task.folderName}/${relativePath.replace(/\\/g, '/')}/`
+        const normalizedPath = relativePath.replace(/\\/g, '/')
+        const dirKey = `products/${task.folderName}/${normalizedPath}/`
         await client.send(
           new PutObjectCommand({
             Bucket: config.bucket,
@@ -247,7 +251,7 @@ export class UploadQueueManager {
         this.pushStateToRenderer()
       }
 
-      // 合并上传列表
+      // 所有文件 + 空目录合并上传
       const allUploadItems: Array<{ type: 'file' | 'dir'; path: string }> = [
         ...otherFiles.map((f) => ({ type: 'file' as const, path: f })),
         ...emptyDirs.map((d) => ({ type: 'dir' as const, path: d })),
@@ -262,6 +266,9 @@ export class UploadQueueManager {
           )
         )
       }
+
+      // 输出上传统计
+      logUploadSummary(uploadedPaths, task.folderName)
 
       // ===== Step 3: 构建 r2 字段 =====
       if (!alreadyHasR2) {
@@ -320,7 +327,7 @@ export class UploadQueueManager {
             'utf-8'
           )
         } catch (writeErr) {
-          console.error('写回本地 product.json 失败:', (writeErr as Error).message)
+          console.error('[R2 Upload] 写回本地 product.json 失败:', (writeErr as Error).message)
         }
       }
 
@@ -336,6 +343,7 @@ export class UploadQueueManager {
 
       task.retryCount++
       if (task.retryCount < UPLOAD_MAX_RETRIES) {
+        console.warn(`[R2 Upload] 重试 ${task.retryCount}/${UPLOAD_MAX_RETRIES}: ${errMsg}`)
         await new Promise((resolve) => setTimeout(resolve, UPLOAD_RETRY_DELAY_MS))
         task.status = 'pending'
         task.errorMessage = undefined
@@ -344,6 +352,7 @@ export class UploadQueueManager {
       } else {
         task.status = 'failed'
         task.errorMessage = errMsg
+        console.error(`[R2 Upload] 上传失败 (已重试${UPLOAD_MAX_RETRIES}次): ${errMsg}`)
       }
       this.pushStateToRenderer()
     }
