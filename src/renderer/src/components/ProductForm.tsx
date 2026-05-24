@@ -232,6 +232,8 @@ export function ProductForm(): JSX.Element {
         weight: img.weight ? Number(img.weight) : 0,
         costPrice: 0,
         sellingPrice: 0,
+        stock: 0,
+        skuNameEn: '',
         imagePath: img.originalPath,
         previewUrl: img.thumbnailDataUrl,
         needAiName,

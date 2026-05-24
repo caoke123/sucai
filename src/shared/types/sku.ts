@@ -10,6 +10,9 @@ export interface SkuItem {
   imagePath: string
   previewUrl?: string
   needAiName?: boolean
+  // v4 扩展字段
+  stock?: number
+  skuNameEn?: string
 }
 
 export interface SpuData {

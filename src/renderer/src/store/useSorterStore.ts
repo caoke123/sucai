@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
-import type { ImageFile, ImageLabel, ProductInfo, SkuSpecRow, SkuItem, SpuData, PackagingPreset } from '@shared/types'
-import { DEFAULT_AI_CONFIG } from '@shared/constants'
+import type { ImageFile, ImageLabel, ProductInfo, SkuSpecRow, SkuItem, SpuData, PackagingPreset, ShopeeInfo, ShopeeAttributes } from '@shared/types'
+import { DEFAULT_AI_CONFIG, DEFAULT_SHOPEE_VALUES } from '@shared/constants'
 
 type Step = 'folder' | 'labeling' | 'info' | 'preview' | 'done'
 
@@ -79,6 +79,17 @@ interface SorterStore {
   setSkuList: (list: SkuItem[]) => void
   updateSkuItem: (index: number, fields: Partial<SkuItem>) => void
 
+  // v4 SKU 批量操作
+  setAllSkuPrice: (price: number) => void
+  setAllSkuStock: (stock: number) => void
+  setAllSkuWeight: (weight: number) => void
+  setAllSkuCostPrice: (costPrice: number) => void
+
+  // v4 Shopee 发布信息
+  shopeeInfo: ShopeeInfo
+  setShopeeInfo: (info: Partial<ShopeeInfo>) => void
+  setShopeeAttributes: (attrs: Partial<ShopeeAttributes>) => void
+
   // 纸箱包装预设
   packagingPresets: PackagingPreset[]
   setPresets: (presets: PackagingPreset[]) => void
@@ -115,6 +126,18 @@ const defaultSpu: SpuData = {
   outerPackWidth: 0,
   outerPackHeight: 0,
   outerPackWeight: 0,
+}
+
+const defaultShopeeInfo: ShopeeInfo = {
+  title: '',
+  descriptionText: '',
+  attributes: {
+    brand: DEFAULT_SHOPEE_VALUES.brand,
+    origin: DEFAULT_SHOPEE_VALUES.origin,
+    material: DEFAULT_SHOPEE_VALUES.material,
+    size: DEFAULT_SHOPEE_VALUES.size,
+  },
+  leadTime: DEFAULT_SHOPEE_VALUES.leadTime,
 }
 
 export const useSorterStore = create<SorterStore>()(
@@ -381,6 +404,43 @@ export const useSorterStore = create<SorterStore>()(
           }
         }),
 
+      // v4 SKU 批量操作
+      setAllSkuPrice: (price) =>
+        set((state) => {
+          state.skuList.forEach((sku) => {
+            sku.sellingPrice = price
+          })
+        }),
+      setAllSkuStock: (stock) =>
+        set((state) => {
+          state.skuList.forEach((sku) => {
+            sku.stock = stock
+          })
+        }),
+      setAllSkuWeight: (weight) =>
+        set((state) => {
+          state.skuList.forEach((sku) => {
+            sku.weight = weight
+          })
+        }),
+      setAllSkuCostPrice: (costPrice) =>
+        set((state) => {
+          state.skuList.forEach((sku) => {
+            sku.costPrice = costPrice
+          })
+        }),
+
+      // v4 Shopee 发布信息
+      shopeeInfo: { ...defaultShopeeInfo },
+      setShopeeInfo: (info) =>
+        set((state) => {
+          Object.assign(state.shopeeInfo, info)
+        }),
+      setShopeeAttributes: (attrs) =>
+        set((state) => {
+          Object.assign(state.shopeeInfo.attributes, attrs)
+        }),
+
       // 纸箱包装预设
       packagingPresets: [],
       setPresets: (presets) =>
@@ -397,7 +457,6 @@ export const useSorterStore = create<SorterStore>()(
         set((state) => {
           state.currentStep = 'folder'
           state.sourceFolderPath = ''
-          // outputFolderPath 保留（通过 persist 持久化）
           state.images = []
           state.selectedImageIds = []
           state.activeLabel = '主图'
@@ -408,6 +467,7 @@ export const useSorterStore = create<SorterStore>()(
           state.selectedPresetId = null
           state.outputPath = ''
           state.shortTitle = ''
+          state.shopeeInfo = { ...defaultShopeeInfo }
         }),
 
       // 仅清理当前产品数据（保留 counter 和 outputFolderPath）
@@ -426,8 +486,7 @@ export const useSorterStore = create<SorterStore>()(
           state.outputPath = ''
           state.shortTitle = ''
           state.productCode = ''
-          // 注意：不清空 outputFolderPath（用户偏好保留）
-          // 注意：不清空 productCounter（全局编号连续性）
+          state.shopeeInfo = { ...defaultShopeeInfo }
         }),
     })),
     {
