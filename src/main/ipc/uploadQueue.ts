@@ -11,6 +11,7 @@ import {
   UPLOAD_RETRY_DELAY_MS,
 } from '@shared/constants'
 import { buildR2Metadata } from '../services/export/buildR2Metadata'
+import { validateR2Config } from '../services/config/validateConfig'
 
 function getContentType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase()
@@ -93,8 +94,9 @@ export class UploadQueueManager {
   // 加入任务
   addTask(task: Omit<UploadTask, 'status' | 'progress' | 'totalFiles' | 'uploadedFiles' | 'retryCount' | 'createdAt'>): void {
     const config = getR2Config()
-    if (!config.endpoint || !config.accessKeyId || !config.secretAccessKey || !config.bucket) {
-      throw new Error('R2 配置不完整，请先在设置中完成 R2 云存储配置')
+    const validation = validateR2Config(config)
+    if (!validation.valid) {
+      throw new Error(validation.message)
     }
 
     // 统计文件数 + 空目录数

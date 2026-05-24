@@ -4,11 +4,11 @@ import { join } from 'path'
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import type { R2Config } from '@shared/types'
 
-// 默认 R2 测试配置
+// 默认 R2 配置模板 (不含密钥, 用户需通过设置面板填入)
 const DEFAULT_R2_CONFIG: R2Config = {
   endpoint: 'https://40c4c9ea1e5d8a746dd7e3075bfaa3d3.r2.cloudflarestorage.com',
-  accessKeyId: 'cf7d9e60f4283322418a60ccf90246c1',
-  secretAccessKey: '0c2159aef8cdb1c5b3d475a0789f2307afdde19f5ce91ed8d7d3bc3fc71e0091',
+  accessKeyId: '',
+  secretAccessKey: '',
   bucket: 'yuntu-products',
   customDomain: 'https://yutu.nv315.top',
 }

@@ -1,10 +1,7 @@
 // ==================== AI 服务统一入口 ====================
-// 所有 AI 功能通过此模块暴露，renderer 不直接调用任何子模块
 
-import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { app } from 'electron'
-import { DEFAULT_AI_CONFIG } from '@shared/constants'
 import { callDoubaoApi } from './provider/doubaoProvider'
 import type { AiProviderConfig } from './provider/doubaoProvider'
 import { buildShopeePrompt } from './prompt/shopeePrompt'
@@ -14,6 +11,8 @@ import type { ShopeeAiResult } from './parser/parseShopeeResponse'
 import { compressImageToBase64 } from './utils/compressImage'
 import { normalizeAiError } from './utils/normalizeAiError'
 import type { NormalizedAiError } from './utils/normalizeAiError'
+import { validateAiConfig } from '../config/validateConfig'
+import { DEFAULT_AI_CONFIG_TEMPLATE } from '../config/defaultConfig'
 
 // ==================== AI 配置管理 ====================
 
@@ -27,18 +26,17 @@ export function initAiConfig(): void {
 
 async function loadAiConfig(): Promise<AiProviderConfig> {
   try {
-    const { access, readFile: rf, writeFile } = await import('fs/promises')
+    const { access: fsAccess, readFile: rf, writeFile } = await import('fs/promises')
     try {
-      await access(aiConfigPath)
+      await fsAccess(aiConfigPath)
     } catch {
-      // 首次运行，写回默认配置
-      await writeFile(aiConfigPath, JSON.stringify(DEFAULT_AI_CONFIG, null, 2), 'utf-8')
-      return { ...DEFAULT_AI_CONFIG }
+      await writeFile(aiConfigPath, JSON.stringify(DEFAULT_AI_CONFIG_TEMPLATE, null, 2), 'utf-8')
+      return { ...DEFAULT_AI_CONFIG_TEMPLATE }
     }
     const raw = await rf(aiConfigPath, 'utf-8')
-    return { ...DEFAULT_AI_CONFIG, ...JSON.parse(raw) }
+    return { ...DEFAULT_AI_CONFIG_TEMPLATE, ...JSON.parse(raw) }
   } catch {
-    return { ...DEFAULT_AI_CONFIG }
+    return { ...DEFAULT_AI_CONFIG_TEMPLATE }
   }
 }
 
