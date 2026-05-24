@@ -104,14 +104,17 @@ export class UploadQueueManager {
 
   addTask(task: Omit<UploadTask, 'status' | 'progress' | 'totalFiles' | 'uploadedFiles' | 'retryCount' | 'createdAt'>): void {
     const config = getR2Config()
+    console.log('[UploadQueue] addTask config:', { hasKey: !!config.accessKeyId, bucket: config.bucket, endpoint: config.endpoint })
     const validation = validateR2Config(config)
     if (!validation.valid) {
+      console.error('[UploadQueue] config invalid:', validation.message)
       throw new Error(validation.message)
     }
 
     const files = getAllFiles(task.localPackagePath, task.localPackagePath)
     const emptyDirs = getEmptyDirs(task.localPackagePath, task.localPackagePath)
     const totalFiles = files.length + emptyDirs.length
+    console.log('[UploadQueue] 扫描完成:', files.length, '文件 +', emptyDirs.length, '空目录 =', totalFiles)
     if (totalFiles === 0) {
       throw new Error('素材包目录为空，没有可上传的文件')
     }

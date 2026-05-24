@@ -33,9 +33,13 @@ export function OutputResult(): JSX.Element {
       localPackagePath: outputPath,
       folderName,
     }).then((result) => {
-      if (!result.success) {
-        console.warn('自动加入上传队列失败:', result.error)
+      if (result.success) {
+        console.log('[Upload] 已加入上传队列:', folderName)
+      } else {
+        console.error('[Upload] 加入队列失败:', result.error)
       }
+    }).catch((err) => {
+      console.error('[Upload] IPC 调用异常:', err)
     })
   }, [outputPath])
 
