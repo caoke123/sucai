@@ -46,4 +46,10 @@ export interface R2Metadata {
     size: R2ImageEntry[]
     certificate: R2ImageEntry[]
   }
+  // v4 扩展
+  toolVersion?: string
+  stockSummary?: {
+    totalStock: number
+    skuCount: number
+  }
 }

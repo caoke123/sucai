@@ -406,6 +406,40 @@ export function PreviewPanel(): JSX.Element {
                 </div>
               </div>
             )}
+
+            {/* Cloud (R2) Preview */}
+            <div className="bg-white rounded-lg border border-[var(--color-border)] p-5">
+              <h3 className="text-md font-medium text-[var(--color-text-primary)] mb-3">
+                R2 云端同步预览
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-[var(--color-text-secondary)]">Metadata 版本</span>
+                  <span className="text-[var(--color-primary)] font-mono text-xs">v4</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--color-text-secondary)]">CDN 目录</span>
+                  <span className="text-[var(--color-text-primary)] font-mono text-xs truncate max-w-[180px]">
+                    products/{packageName}/
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--color-text-secondary)]">图片分类数</span>
+                  <span className="text-[var(--color-text-primary)]">
+                    {Object.keys(LABEL_TO_FOLDER).length} 类
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--color-text-secondary)]">库存总计</span>
+                  <span className="text-[var(--color-text-primary)]">{skuTotalStock}</span>
+                </div>
+                <div className="border-t border-[var(--color-border)] pt-2 mt-2">
+                  <div className="text-xs text-[var(--color-text-tertiary)]">
+                    上传后 product.json 将自动写入 r2 metadata
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
