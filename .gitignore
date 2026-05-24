@@ -1,6 +1,31 @@
 node_modules/
 dist/
+dist-electron/
 out/
-.env
-*.log
+release/
+build/
+.cache/
+.vite/
+.idea/
+.vscode/
 .DS_Store
+
+# 环境配置 (含敏感信息)
+.env
+.env.local
+.env.production
+ai-config.json
+r2-config.json
+
+# 日志
+*.log
+
+# 测试覆盖率
+coverage/
+
+# 临时目录
+temp/
+tmp/
+
+# 用户上传 (运行时生成)
+uploads/
