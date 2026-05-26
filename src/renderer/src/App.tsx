@@ -22,7 +22,7 @@ function App(): JSX.Element {
         {/* 中间 */}
         <span>雨图饰品素材分拣系统</span>
         <span className="w-px h-3 bg-gray-200" />
-        <span>版本号：v4.0</span>
+        <span>版本号：v4.5</span>
         <span className="w-px h-3 bg-gray-200" />
         <span>作者：xp</span>
         <span className="w-px h-3 bg-gray-200" />

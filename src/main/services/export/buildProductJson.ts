@@ -4,7 +4,8 @@ import fs from 'fs'
 import path from 'path'
 import type { ProductOutput, ProductInfo, SkuItem, ShopeeInfo, ProductAssets } from '@shared/types'
 import { getExportVersion } from './versioning/getExportVersion'
-import { buildV4ProductJson } from './versioning/exportV4'
+import type { ExportVersion } from './versioning/getExportVersion'
+import { buildV45ProductJson } from './versioning/exportV4'
 import { buildAssetManifest } from './buildAssetManifest'
 import type { RenamedFile } from './renameImages'
 
@@ -34,28 +35,16 @@ export function buildProductJsonData(input: BuildProductJsonInput): ProductOutpu
     })
   }
 
-  const version = getExportVersion({ shopeeInfo })
+  const _version = getExportVersion({ shopeeInfo })
 
-  switch (version) {
-    case 'v4':
-      return buildV4ProductJson({
-        productInfo,
-        skuList,
-        outerPackaging,
-        shopeeInfo,
-        localPackagePath,
-        assetManifest,
-      })
-    default:
-      return buildV4ProductJson({
-        productInfo,
-        skuList,
-        outerPackaging,
-        shopeeInfo,
-        localPackagePath,
-        assetManifest,
-      })
-  }
+  return buildV45ProductJson({
+    productInfo,
+    skuList,
+    outerPackaging,
+    shopeeInfo,
+    localPackagePath,
+    assetManifest,
+  })
 }
 
 export function writeProductJson(packagePath: string, data: ProductOutput): string {

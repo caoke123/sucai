@@ -1,160 +1,180 @@
 // ==================== product.json 版本迁移模块 ====================
-// 所有迁移函数均为纯函数，返回新对象，不修改入参
-// 原则: 缺失字段补默认值，不覆盖已有字段，保留所有现有数据
 
 import { DEFAULT_SHOPEE_VALUES, TOOL_VERSION } from './constants'
 
-// 解析主版本号 (e.g. '3.0.0' → 3, '4.0.0-beta.1' → 4, missing → 1)
-function parseMajorVersion(version?: string): number {
-  if (!version) return 1
-  const match = version.match(/^(\d+)\./)
-  return match ? parseInt(match[1], 10) : 1
+function parseVersion(version?: string): string {
+  return version || '1.0.0'
 }
 
-// 迁移 v1.x → v4: 无任何扩展字段
-function migrateV1ToV4(data: Record<string, unknown>): Record<string, unknown> {
-  return applyV4Defaults(data, false)
+function isLegacy(version: string): boolean {
+  const match = version.match(/^(\d+)\.(\d+)/)
+  if (!match) return true
+  const major = parseInt(match[1])
+  const minor = parseInt(match[2]) || 0
+  return major < 4 || (major === 4 && minor < 5)
 }
 
-// 迁移 v2.x → v4: 同 v1，早期版本无扩展字段
-function migrateV2ToV4(data: Record<string, unknown>): Record<string, unknown> {
-  return applyV4Defaults(data, false)
-}
-
-// 迁移 v3.x → v4: 已有 r2 字段
-function migrateV3ToV4(data: Record<string, unknown>): Record<string, unknown> {
-  return applyV4Defaults(data, true)
-}
-
-// 应用 v4 默认值
-function applyV4Defaults(data: Record<string, unknown>, hasR2: boolean): Record<string, unknown> {
-  const result = { ...data }
-
-  // toolVersion 升级
-  if (!result.toolVersion || parseMajorVersion(result.toolVersion as string) < 4) {
-    result.toolVersion = TOOL_VERSION
+function parseSize(raw: unknown): { length: number; width: number; height: number; unit: string } {
+  // 已经是对象格式
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const o = raw as Record<string, unknown>
+    return {
+      length: Number(o.length) || 0,
+      width: Number(o.width) || 0,
+      height: Number(o.height) || 0,
+      unit: (o.unit as string) || 'cm',
+    }
   }
+  // 字符串格式 "6x6x12"
+  const str = String(raw || '')
+  if (!str) return { length: 0, width: 0, height: 0, unit: 'cm' }
+  const parts = str.split(/[x×X]/).map((p) => parseFloat(p.trim()) || 0)
+  if (parts.length >= 3) return { length: parts[0], width: parts[1], height: parts[2], unit: 'cm' }
+  if (parts.length === 2) return { length: parts[0], width: parts[1], height: 0, unit: 'cm' }
+  if (parts.length === 1) return { length: parts[0], width: 0, height: 0, unit: 'cm' }
+  return { length: 0, width: 0, height: 0, unit: 'cm' }
+}
 
-  // localPath (不覆盖已有)
-  if (result.localPath === undefined) {
-    result.localPath = ''
-  }
+function migrateLegacyToV45(data: Record<string, unknown>): Record<string, unknown> {
+  console.warn('[migration] 检测到旧版 product.json (v4.x), 已自动升级为 v4.5 结构')
 
-  // shopee 对象
-  if (result.shopee === undefined || result.shopee === null) {
-    result.shopee = {
-      title: '',
-      descriptionText: '',
-      attributes: {
-        brand: DEFAULT_SHOPEE_VALUES.brand,
-        origin: DEFAULT_SHOPEE_VALUES.origin,
-        material: DEFAULT_SHOPEE_VALUES.material,
-        size: DEFAULT_SHOPEE_VALUES.size,
+  const now = new Date().toISOString()
+  const oldSkus = (data.skus as Array<Record<string, unknown>>) || []
+  const oldShopee = data.shopee as Record<string, unknown> | undefined
+  const oldR2 = data.r2 as Record<string, unknown> | undefined
+
+  const newSkus = oldSkus.map((sku, i) => {
+    const size = sku.size !== undefined ? sku.size : sku.dimensions || ''
+    return {
+      index: i,
+      skuCode: sku.skuCode || '',
+      nameZh: (sku.skuName as string) || (sku.colorName as string) || '',
+      nameEn: (sku.skuNameEn as string) || '',
+      weight: Number(sku.weight) || 0,
+      size: parseSize(size),
+      pricing: {
+        cost: Number(sku.costPrice) || 0,
+        selling: Number(sku.sellingPrice) || 0,
+        currency: 'CNY',
       },
-      leadTime: DEFAULT_SHOPEE_VALUES.leadTime,
-      minimumOrderQty: DEFAULT_SHOPEE_VALUES.minimumOrderQty,
-      jitInvitationCode: DEFAULT_SHOPEE_VALUES.jitInvitationCode,
+      stock: Number(sku.stock) || 0,
+      images: {
+        primary: null,
+      },
     }
-  } else {
-    // 已有 shopee 对象时, 确保新字段存在
-    if ((result.shopee as Record<string, unknown>).minimumOrderQty === undefined) {
-      (result.shopee as Record<string, unknown>).minimumOrderQty = DEFAULT_SHOPEE_VALUES.minimumOrderQty
+  })
+
+  // 绑定 SKU 图片
+  const oldAssets = data.assets as Record<string, Array<Record<string, unknown>>> | undefined
+  if (oldAssets?.sku) {
+    const skuAssets = oldAssets.sku
+    newSkus.forEach((sku: Record<string, unknown>, i: number) => {
+      if (skuAssets[i]) {
+        (sku.images as Record<string, unknown>).primary = {
+          index: 0,
+          fileName: skuAssets[i].fileName || '',
+          localPath: skuAssets[i].localPath || '',
+          r2Url: skuAssets[i].r2Url || (oldSkus[i]?.imageUrl as string) || '',
+        }
+      }
+    })
+  }
+
+  // 构建 images
+  const newImages = { main: [] as Array<Record<string, unknown>>, detail: [] as Array<Record<string, unknown>> }
+  if (oldAssets) {
+    const sortFn = (a: Record<string, unknown>, b: Record<string, unknown>) => {
+      const matchA = (a.fileName as string).match(/(\d+)/)
+      const matchB = (b.fileName as string).match(/(\d+)/)
+      return (matchA ? parseInt(matchA[1]) : 0) - (matchB ? parseInt(matchB[1]) : 0)
     }
-    if ((result.shopee as Record<string, unknown>).jitInvitationCode === undefined) {
-      (result.shopee as Record<string, unknown>).jitInvitationCode = DEFAULT_SHOPEE_VALUES.jitInvitationCode
+    for (const cat of ['main', 'detail'] as const) {
+      const assets = oldAssets[cat] || []
+      newImages[cat] = [...assets].sort(sortFn).map((img: Record<string, unknown>, index: number) => ({
+        index,
+        fileName: img.fileName || '',
+        localPath: img.localPath || '',
+        r2Url: img.r2Url || '',
+      }))
     }
   }
 
-  // pim 扩展字段
-  if (result.pim === undefined || result.pim === null) {
-    result.pim = { syncedAt: null, status: 'draft' }
+  return {
+    productNo: data.productNo || '',
+    toolVersion: TOOL_VERSION,
+    createdAt: data.createdAt || now,
+    updatedAt: now,
+    internal: {
+      title: data.title || '',
+      description: data.description || '',
+      category: data.category || '',
+      localPath: data.localPath || '',
+    },
+    platforms: {
+      shopee: {
+        title: oldShopee?.title || '',
+        description: oldShopee?.descriptionText || '',
+        category: [],
+        attributes: {
+          brand: oldShopee?.attributes
+            ? (oldShopee.attributes as Record<string, unknown>).brand || DEFAULT_SHOPEE_VALUES.brand
+            : DEFAULT_SHOPEE_VALUES.brand,
+          origin: oldShopee?.attributes
+            ? (oldShopee.attributes as Record<string, unknown>).origin || DEFAULT_SHOPEE_VALUES.origin
+            : DEFAULT_SHOPEE_VALUES.origin,
+          material: oldShopee?.attributes
+            ? (oldShopee.attributes as Record<string, unknown>).material || ''
+            : '',
+        },
+        logistics: {
+          leadTime: Number(oldShopee?.leadTime) || 5,
+          minimumOrderQty: Number(oldShopee?.minimumOrderQty) || 5,
+          jit: !!(oldShopee?.jitInvitationCode),
+        },
+        invitation: {
+          code: (oldShopee?.jitInvitationCode as string) || '',
+        },
+        status: 'draft',
+        publishedAt: null,
+        shopeeItemId: null,
+      },
+    },
+    skus: newSkus,
+    images: newImages,
+    pim: {
+      status: ((data.pim as Record<string, unknown>)?.status as string) === 'draft' ? 'ready' : ((data.pim as Record<string, unknown>)?.status || 'ready'),
+      syncedAt: (data.pim as Record<string, unknown>)?.syncedAt || null,
+      notes: ((data.pim as Record<string, unknown>)?.notes as string) || '',
+    },
+    r2: {
+      basePath: oldR2?.basePath || '',
+      syncedAt: oldR2?.syncedAt || '',
+    },
   }
-
-  // SKU 数组升级
-  const skus = result.skus as Array<Record<string, unknown>> | undefined
-  if (Array.isArray(skus)) {
-    result.skus = skus.map((sku) => ({
-      ...sku,
-      stock: sku.stock !== undefined ? sku.stock : 0,
-      skuNameEn: sku.skuNameEn !== undefined ? sku.skuNameEn : '',
-      imageUrl: sku.imageUrl !== undefined ? sku.imageUrl : '',
-    }))
-  }
-
-  // r2 字段：v3 已有则保留，v1/v2 则设空
-  if (!hasR2 && result.r2 === undefined) {
-    result.r2 = undefined
-  }
-
-  // assets 字段：旧版本缺失时留空（后续重新导出时自动构建）
-  if (result.assets === undefined) {
-    result.assets = undefined
-  }
-
-  return result
 }
 
-// 判断是否为有效的 product.json 对象
+// 主迁移入口
+export function migrateProductJson(rawData: Record<string, unknown>): Record<string, unknown> {
+  const currentVersion = parseVersion(rawData.toolVersion as string)
+
+  if (isLegacy(currentVersion)) {
+    return migrateLegacyToV45(rawData)
+  }
+
+  // 已是 v4.5+, 确保 updatedAt 存在
+  if (!rawData.updatedAt) {
+    rawData.updatedAt = new Date().toISOString()
+  }
+
+  return rawData
+}
+
 export function isValidProductJson(obj: unknown): obj is Record<string, unknown> {
   return (
     typeof obj === 'object' &&
     obj !== null &&
     !Array.isArray(obj) &&
-    typeof (obj as Record<string, unknown>).title === 'string'
+    (typeof (obj as Record<string, unknown>).productNo === 'string' ||
+     typeof (obj as Record<string, unknown>).title === 'string')
   )
-}
-
-// 主迁移入口
-// 根据 toolVersion 自动选择迁移路径
-export function migrateProductJson(
-  rawData: Record<string, unknown>
-): Record<string, unknown> {
-  const version = parseMajorVersion(rawData.toolVersion as string | undefined)
-
-  switch (version) {
-    case 1:
-      return migrateV1ToV4(rawData)
-    case 2:
-      return migrateV2ToV4(rawData)
-    case 3:
-      return migrateV3ToV4(rawData)
-    case 4:
-      // v4.x 无需迁移，但确保所有可选字段存在
-      return applyV4Defaults(rawData, true)
-    default:
-      console.warn(`[migration] 未知 toolVersion: ${rawData.toolVersion}，按 v1 处理`)
-      return migrateV1ToV4(rawData)
-  }
-}
-
-// 获取版本信息
-export function getMigrationInfo(rawData: Record<string, unknown>): {
-  currentVersion: string
-  majorVersion: number
-  needsMigration: boolean
-  missingFields: string[]
-} {
-  const currentVersion = (rawData.toolVersion as string) || '1.0.0'
-  const majorVersion = parseMajorVersion(currentVersion)
-  const missingFields: string[] = []
-
-  if (!rawData.localPath) missingFields.push('localPath')
-  if (!rawData.shopee) missingFields.push('shopee')
-  if (!rawData.pim) missingFields.push('pim')
-  if (!rawData.assets) missingFields.push('assets')
-
-  const skus = rawData.skus as Array<Record<string, unknown>> | undefined
-  if (Array.isArray(skus)) {
-    const hasStock = skus.every((s) => s.stock !== undefined)
-    const hasSkuNameEn = skus.every((s) => s.skuNameEn !== undefined)
-    if (!hasStock) missingFields.push('skus[].stock')
-    if (!hasSkuNameEn) missingFields.push('skus[].skuNameEn')
-  }
-
-  return {
-    currentVersion,
-    majorVersion,
-    needsMigration: majorVersion < 4 || missingFields.length > 0,
-    missingFields,
-  }
 }

@@ -291,7 +291,7 @@ export class UploadQueueManager {
       // 输出上传统计
       logUploadSummary(uploadedPaths, task.folderName)
 
-      // ===== Step 3: 构建 r2 字段 =====
+      // ===== Step 3: 构建 r2 字段 + 回写图片 URL =====
       if (!alreadyHasR2) {
         task.progress = Math.round(((task.totalFiles - 1) / task.totalFiles) * 100)
         this.pushStateToRenderer()
@@ -304,25 +304,58 @@ export class UploadQueueManager {
           originalSkus: skus,
         })
 
-        const finalJson = {
-          ...originalJson,
-          r2: r2Field,
-          skus: updatedSkus,
-        }
+        const finalJson = { ...originalJson }
 
-        // v4: 更新 assets 中的 r2Url + uploaded 标记
-        const existingAssets = originalJson.assets as Record<string, Array<Record<string, unknown>>> | undefined
-        if (existingAssets) {
-          const enrichedAssets: Record<string, Array<Record<string, unknown>>> = {}
-          for (const [cat, descriptors] of Object.entries(existingAssets)) {
-            enrichedAssets[cat] = (descriptors as Array<Record<string, unknown>>).map((d) => {
+        // v4.5: enrich images.main[]/detail[]/skus[].images.primary
+        const existingImages = originalJson.images as Record<string, Array<Record<string, unknown>>> | undefined
+        if (existingImages) {
+          const enrichedImages: Record<string, Array<Record<string, unknown>>> = {}
+          for (const cat of ['main', 'detail']) {
+            enrichedImages[cat] = (existingImages[cat] || []).map((d: Record<string, unknown>) => {
               const fileName = d.fileName as string
               const catImages = (r2Field.images as Record<string, Array<{ fileName: string; url: string }>>)[cat] || []
-              const matched = catImages.find((img) => img.fileName === fileName)
-              return matched ? { ...d, r2Url: matched.url, uploaded: true } : d
+              const matched = catImages.find((img: { fileName: string }) => img.fileName === fileName)
+              return matched ? { ...d, r2Url: matched.url } : d
             })
           }
-          finalJson.assets = enrichedAssets as unknown as typeof originalJson.assets
+          finalJson.images = enrichedImages as unknown as typeof originalJson.images
+
+          // enrich skus[].images.primary
+          const enrichedSkus = (updatedSkus as Array<Record<string, unknown>>).map((sku) => {
+            const primary = (sku as Record<string, unknown>).images as Record<string, unknown> | undefined
+            if (primary?.primary) {
+              const p = primary.primary as Record<string, unknown>
+              const skuImagesList = (r2Field.images as Record<string, Array<{ fileName: string; url: string }>>).sku || []
+              const matched = skuImagesList.find((img: { fileName: string }) => img.fileName === p.fileName)
+              if (matched) {
+                return { ...sku, images: { primary: { ...p, r2Url: matched.url } } }
+              }
+            }
+            return sku
+          })
+          finalJson.skus = enrichedSkus as typeof updatedSkus
+        } else {
+          // 兼容旧 v4 格式 (assets)
+          const existingAssets = originalJson.assets as Record<string, Array<Record<string, unknown>>> | undefined
+          if (existingAssets) {
+            const enrichedAssets: Record<string, Array<Record<string, unknown>>> = {}
+            for (const [cat, descriptors] of Object.entries(existingAssets)) {
+              enrichedAssets[cat] = (descriptors as Array<Record<string, unknown>>).map((d) => {
+                const fileName = d.fileName as string
+                const catImages = (r2Field.images as Record<string, Array<{ fileName: string; url: string }>>)[cat] || []
+                const matched = catImages.find((img: { fileName: string }) => img.fileName === fileName)
+                return matched ? { ...d, r2Url: matched.url, uploaded: true } : d
+              })
+            }
+            finalJson.assets = enrichedAssets as unknown as typeof originalJson.assets
+          }
+          finalJson.skus = updatedSkus
+        }
+
+        // 精简 r2: 仅保留 basePath + syncedAt
+        finalJson.r2 = {
+          basePath: r2Field.basePath,
+          syncedAt: r2Field.syncedAt,
         }
 
         // ===== Step 4: 上传最终 product.json =====

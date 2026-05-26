@@ -1,6 +1,6 @@
 {
   "name": "material-sorter",
-  "version": "4.0.0",
+  "version": "4.5.0",
   "description": "产品素材分拣工具",
   "main": "./out/main/index.js",
   "scripts": {
