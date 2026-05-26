@@ -47,5 +47,3 @@ export type {
 export type { PimExtension } from './pim'
 
 export type { AssetFile, ProductAssets } from './assets'
-
-export type { UploadManifestEntry, UploadManifest } from './upload'
