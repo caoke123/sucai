@@ -206,26 +206,12 @@ export function SkuTableSection({
               {/* SKU名称 */}
               <div className="col-span-2">
                 <label className="block text-xs text-[var(--color-text-tertiary)] mb-0.5">名称</label>
-                <input
-                  type="text"
-                  value={sku.colorName}
-                  onChange={(e) => onUpdateSkuItem(idx, { colorName: e.target.value })}
-                  placeholder="如 珍珠白"
-                  className="w-full px-2 py-1.5 border border-[var(--color-border)] rounded text-sm
-                             focus:outline-none focus:border-[var(--color-primary)]
-                             text-[var(--color-text-primary)] bg-white"
-                />
-              </div>
-
-              {/* 英文名称 (v4) */}
-              <div className="col-span-2">
-                <label className="block text-xs text-[var(--color-text-tertiary)] mb-0.5">英文名称</label>
                 <div className="flex gap-1">
                   <input
                     type="text"
-                    value={sku.skuNameEn || ''}
-                    onChange={(e) => onUpdateSkuItem(idx, { skuNameEn: e.target.value })}
-                    placeholder="Pearl White"
+                    value={sku.colorName}
+                    onChange={(e) => onUpdateSkuItem(idx, { colorName: e.target.value })}
+                    placeholder="如 珍珠白"
                     className="flex-1 px-2 py-1.5 border border-[var(--color-border)] rounded text-sm
                                focus:outline-none focus:border-[var(--color-primary)]
                                text-[var(--color-text-primary)] bg-white"
@@ -236,10 +222,25 @@ export function SkuTableSection({
                     className="px-2 py-1.5 text-xs border border-purple-200 text-purple-600 bg-purple-50
                                hover:bg-purple-100 rounded disabled:opacity-50 disabled:cursor-not-allowed
                                transition-colors duration-150 whitespace-nowrap shrink-0"
+                    title="AI翻译为英文"
                   >
-                    {skuAiLoadingIndex === idx ? '·' : '✨'}
+                    {skuAiLoadingIndex === idx ? '···' : '✨'}
                   </button>
                 </div>
+              </div>
+
+              {/* 英文名称 (v4) */}
+              <div className="col-span-2">
+                <label className="block text-xs text-[var(--color-text-tertiary)] mb-0.5">英文名称</label>
+                <input
+                  type="text"
+                  value={sku.skuNameEn || ''}
+                  onChange={(e) => onUpdateSkuItem(idx, { skuNameEn: e.target.value })}
+                  placeholder="Pearl White"
+                  className="w-full px-2 py-1.5 border border-[var(--color-border)] rounded text-sm
+                             focus:outline-none focus:border-[var(--color-primary)]
+                             text-[var(--color-text-primary)] bg-white"
+                />
               </div>
 
               {/* 尺寸 */}

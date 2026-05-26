@@ -48,7 +48,7 @@ export function buildShopeePrompt(input: ShopeePromptInput): {
   let fileNameContext = ''
   if (originalFileNames && originalFileNames.length > 0) {
     const fileLines = originalFileNames
-      .map((f, i) => `  SKU ${i}: "${skusText[i] || skuNames[i] || '?'}"  | 原始文件名="${f}"`)
+      .map((f, i) => `  SKU ${i}: "${skuNames[i] || '?'}"  | 原始文件名="${f}"`)
       .join('\n')
     fileNameContext = `\n[ORIGINAL IMAGE FILE NAMES — these may contain product name, variant, color clues]\n${fileLines}\n`
   }
