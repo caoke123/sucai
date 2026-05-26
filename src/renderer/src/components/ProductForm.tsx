@@ -634,15 +634,6 @@ export function ProductForm(): JSX.Element {
       setBatchTranslating(false)
     }
   }
-      } else {
-        console.error('[SKU Translate] 翻译失败:', result.error?.message)
-      }
-    } catch (err) {
-      console.error('[SKU Translate] 异常:', err)
-    } finally {
-      setTranslatingSkuCode(null)
-    }
-  }
 
   // 保存新预设
   const handleSavePreset = async (): Promise<void> => {
