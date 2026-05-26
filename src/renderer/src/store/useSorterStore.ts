@@ -138,6 +138,8 @@ const defaultShopeeInfo: ShopeeInfo = {
     size: DEFAULT_SHOPEE_VALUES.size,
   },
   leadTime: DEFAULT_SHOPEE_VALUES.leadTime,
+  minimumOrderQty: DEFAULT_SHOPEE_VALUES.minimumOrderQty,
+  jitInvitationCode: DEFAULT_SHOPEE_VALUES.jitInvitationCode,
 }
 
 export const useSorterStore = create<SorterStore>()(

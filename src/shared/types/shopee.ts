@@ -5,6 +5,8 @@ export interface ShopeeInfo {
   descriptionText: string
   attributes: ShopeeAttributes
   leadTime: number
+  minimumOrderQty: number
+  jitInvitationCode: string
 }
 
 export interface ShopeeAttributes {

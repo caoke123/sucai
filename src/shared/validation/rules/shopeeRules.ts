@@ -2,6 +2,8 @@
 
 import type { ValidationIssue, ValidationContext } from '../types'
 
+const VALID_JIT_CODES = ['IVCN202507240989', 'IVCN202507240990', 'IVCN202507240991']
+
 export function validateShopeeRules(ctx: ValidationContext): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   const shopee = ctx.shopeeInfo
@@ -37,6 +39,32 @@ export function validateShopeeRules(ctx: ValidationContext): ValidationIssue[] {
       field: 'shopee.attributes.material',
       level: 'warning',
       message: '建议填写商品材质信息',
+    })
+  }
+
+  // error: 起订量范围
+  const mqty = shopee.minimumOrderQty
+  if (typeof mqty !== 'number' || isNaN(mqty) || mqty < 1) {
+    issues.push({
+      field: 'shopee.minimumOrderQty',
+      level: 'error',
+      message: '起订量必须 >= 1',
+    })
+  } else if (mqty > 9999) {
+    issues.push({
+      field: 'shopee.minimumOrderQty',
+      level: 'error',
+      message: '起订量不能超过 9999',
+    })
+  }
+
+  // warning: JIT 邀请码
+  const jit = shopee.jitInvitationCode
+  if (jit && jit.trim() && !VALID_JIT_CODES.includes(jit.trim())) {
+    issues.push({
+      field: 'shopee.jitInvitationCode',
+      level: 'warning',
+      message: 'JIT 邀请码不在已知列表中',
     })
   }
 

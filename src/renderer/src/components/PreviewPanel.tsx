@@ -46,6 +46,8 @@ export function PreviewPanel(): JSX.Element {
         title: shopeeInfo?.title || '',
         descriptionText: shopeeInfo?.descriptionText || '',
         attributes: { material: shopeeInfo?.attributes?.material || '' },
+        minimumOrderQty: shopeeInfo?.minimumOrderQty ?? 5,
+        jitInvitationCode: shopeeInfo?.jitInvitationCode || '',
       },
       skus: (skuList || []).map((sku) => ({
         skuName: sku.colorName || '',
@@ -132,12 +134,14 @@ export function PreviewPanel(): JSX.Element {
         title: shopeeInfo.title || '',
         descriptionText: shopeeInfo.descriptionText || '',
         attributes: {
-          brand: shopeeInfo.attributes?.brand || 'No Brand',
-          origin: shopeeInfo.attributes?.origin || 'China',
+          brand: shopeeInfo.attributes?.brand || 'NoBrand',
+          origin: shopeeInfo.attributes?.origin || '中国大陆',
           material: shopeeInfo.attributes?.material || '',
           size: shopeeInfo.attributes?.size || '',
         },
         leadTime: shopeeInfo.leadTime ?? 5,
+        minimumOrderQty: shopeeInfo.minimumOrderQty ?? 5,
+        jitInvitationCode: shopeeInfo.jitInvitationCode || '',
       } : undefined,
       pim: { syncedAt: null, status: 'draft' as const },
     }
@@ -379,6 +383,11 @@ export function PreviewPanel(): JSX.Element {
                   <span>品牌: {shopeeInfo?.attributes?.brand || '-'}</span>
                   <span>产地: {shopeeInfo?.attributes?.origin || '-'}</span>
                   <span>材质: {shopeeInfo?.attributes?.material || '-'}</span>
+                </div>
+                <div className="flex gap-4 text-xs text-[var(--color-text-tertiary)]">
+                  <span>备货: {shopeeInfo?.leadTime ?? '-'}天</span>
+                  <span>起订量: {shopeeInfo?.minimumOrderQty ?? '-'}件</span>
+                  <span>JIT: {shopeeInfo?.jitInvitationCode || '-'}</span>
                 </div>
               </div>
             </div>

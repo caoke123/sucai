@@ -68,9 +68,11 @@ export const DEFAULT_AI_CONFIG = {
 
 // ==================== v4 Shopee 默认值 ====================
 export const DEFAULT_SHOPEE_VALUES = {
-  brand: 'No Brand',
-  origin: 'China',
+  brand: 'NoBrand',
+  origin: '中国大陆',
   leadTime: 5,
+  minimumOrderQty: 5,
+  jitInvitationCode: '',
   material: '',
   size: '',
 }

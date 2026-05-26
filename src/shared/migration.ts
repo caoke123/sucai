@@ -52,6 +52,16 @@ function applyV4Defaults(data: Record<string, unknown>, hasR2: boolean): Record<
         size: DEFAULT_SHOPEE_VALUES.size,
       },
       leadTime: DEFAULT_SHOPEE_VALUES.leadTime,
+      minimumOrderQty: DEFAULT_SHOPEE_VALUES.minimumOrderQty,
+      jitInvitationCode: DEFAULT_SHOPEE_VALUES.jitInvitationCode,
+    }
+  } else {
+    // 已有 shopee 对象时, 确保新字段存在
+    if ((result.shopee as Record<string, unknown>).minimumOrderQty === undefined) {
+      (result.shopee as Record<string, unknown>).minimumOrderQty = DEFAULT_SHOPEE_VALUES.minimumOrderQty
+    }
+    if ((result.shopee as Record<string, unknown>).jitInvitationCode === undefined) {
+      (result.shopee as Record<string, unknown>).jitInvitationCode = DEFAULT_SHOPEE_VALUES.jitInvitationCode
     }
   }
 

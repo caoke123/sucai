@@ -61,12 +61,14 @@ export function buildV4ProductJson(input: ExportV4Input): ProductOutput {
       title: shopeeInfo.title || '',
       descriptionText: shopeeInfo.descriptionText || '',
       attributes: {
-        brand: shopeeInfo.attributes?.brand || 'No Brand',
-        origin: shopeeInfo.attributes?.origin || 'China',
+        brand: shopeeInfo.attributes?.brand || 'NoBrand',
+        origin: shopeeInfo.attributes?.origin || '中国大陆',
         material: shopeeInfo.attributes?.material || '',
         size: shopeeInfo.attributes?.size || '',
       },
       leadTime: shopeeInfo.leadTime ?? 5,
+      minimumOrderQty: shopeeInfo.minimumOrderQty ?? 5,
+      jitInvitationCode: shopeeInfo.jitInvitationCode || '',
     }
   }
 

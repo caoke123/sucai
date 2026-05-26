@@ -387,6 +387,14 @@ export function ProductForm(): JSX.Element {
       if (infoData.category) {
         const catCode = getCategoryCode(infoData.category)
         updateSpu({ categoryCode: catCode, spuName: infoData.title || '' })
+
+        // AI 分类为"包包挂件"时自动设置 JIT 邀请码
+        if (catCode === 'BG') {
+          const st1 = useSorterStore.getState()
+          if (!st1.shopeeInfo.jitInvitationCode) {
+            st1.setShopeeInfo({ jitInvitationCode: 'IVCN202507240989' })
+          }
+        }
       }
 
       let skuSucceeded = 0

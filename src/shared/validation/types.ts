@@ -18,6 +18,8 @@ export interface ValidationContext {
     title: string
     descriptionText: string
     attributes: { material: string }
+    minimumOrderQty: number
+    jitInvitationCode: string
   }
   skus?: Array<{
     skuName: string
