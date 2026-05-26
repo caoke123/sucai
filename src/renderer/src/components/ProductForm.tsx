@@ -190,7 +190,7 @@ export function ProductForm(): JSX.Element {
   const [aiError, setAiError] = useState<string | null>(null)
   const [shopeeAiLoading, setShopeeAiLoading] = useState(false)
   const [shopeeAiError, setShopeeAiError] = useState<string | null>(null)
-  const [skuAiLoadingIndex, setSkuAiLoadingIndex] = useState<number | null>(null)
+  const [translatingSkuCode, setTranslatingSkuCode] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -563,7 +563,8 @@ export function ProductForm(): JSX.Element {
     const sku = st.skuList[index]
     if (!sku || !sku.colorName) return
 
-    setSkuAiLoadingIndex(index)
+    const targetCode = sku.skuCode || sku.colorName
+    setTranslatingSkuCode(targetCode)
     try {
       const result = await window.electronAPI.callTranslateSku({
         chineseTitle: productInfo.title,
@@ -576,14 +577,19 @@ export function ProductForm(): JSX.Element {
 
       if (result.success && result.data?.nameEn) {
         const st2 = useSorterStore.getState()
-        st2.updateSkuItem(index, { skuNameEn: result.data.nameEn })
+        const targetIdx = st2.skuList.findIndex(
+          (s) => s.skuCode === targetCode || s.colorName === targetCode
+        )
+        if (targetIdx !== -1) {
+          st2.updateSkuItem(targetIdx, { skuNameEn: result.data.nameEn })
+        }
       } else {
         console.error('[SKU Translate] 翻译失败:', result.error?.message)
       }
     } catch (err) {
       console.error('[SKU Translate] 异常:', err)
     } finally {
-      setSkuAiLoadingIndex(null)
+      setTranslatingSkuCode(null)
     }
   }
 
@@ -764,7 +770,7 @@ export function ProductForm(): JSX.Element {
           onUpdateSkuItem={updateSkuItem}
           onCopyPreviousSku={handleCopyPreviousSku}
           onAiTranslateSku={handleTranslateSku}
-          skuAiLoadingIndex={skuAiLoadingIndex}
+          translatingSkuCode={translatingSkuCode}
           getSkuImageSrc={getSkuImageSrc}
         />
 

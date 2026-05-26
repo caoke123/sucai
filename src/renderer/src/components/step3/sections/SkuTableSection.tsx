@@ -2,7 +2,7 @@ import type { SkuItem } from '@shared/types'
 
 interface SkuTableSectionProps {
   skuList: SkuItem[]
-  skuAiLoadingIndex: number | null
+  translatingSkuCode: string | null
   batchLength: string
   batchWidth: string
   batchHeight: string
@@ -49,7 +49,7 @@ export function SkuTableSection({
   onUpdateSkuItem,
   onCopyPreviousSku,
   onAiTranslateSku,
-  skuAiLoadingIndex,
+  translatingSkuCode,
   getSkuImageSrc,
 }: SkuTableSectionProps): JSX.Element {
   return (
@@ -162,7 +162,7 @@ export function SkuTableSection({
         ) : (
           skuList.map((sku, idx) => (
             <div
-              key={sku.skuCode || `sku-${idx}`}
+              key={sku.skuCode || sku.colorName || `sku-${idx}`}
               className="grid grid-cols-12 gap-2 items-center px-3 py-2.5 bg-white border border-gray-200 rounded-md
                          hover:border-[var(--color-primary)] transition-all duration-150"
             >
@@ -218,13 +218,13 @@ export function SkuTableSection({
                   />
                   <button
                     onClick={() => onAiTranslateSku(idx)}
-                    disabled={skuAiLoadingIndex === idx}
+                    disabled={translatingSkuCode === (sku.skuCode || sku.colorName)}
                     className="px-2 py-1.5 text-xs border border-purple-200 text-purple-600 bg-purple-50
                                hover:bg-purple-100 rounded disabled:opacity-50 disabled:cursor-not-allowed
                                transition-colors duration-150 whitespace-nowrap shrink-0"
                     title="AI翻译为英文"
                   >
-                    {skuAiLoadingIndex === idx ? '···' : '✨'}
+                    {translatingSkuCode === (sku.skuCode || sku.colorName) ? '···' : '✨'}
                   </button>
                 </div>
               </div>
