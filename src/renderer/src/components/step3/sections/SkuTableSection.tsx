@@ -3,6 +3,7 @@ import type { SkuItem } from '@shared/types'
 interface SkuTableSectionProps {
   skuList: SkuItem[]
   translatingSkuCode: string | null
+  batchTranslating: boolean
   batchLength: string
   batchWidth: string
   batchHeight: string
@@ -21,6 +22,7 @@ interface SkuTableSectionProps {
   onUpdateSkuItem: (index: number, partial: Partial<SkuItem>) => void
   onCopyPreviousSku: (index: number) => void
   onAiTranslateSku: (index: number) => void
+  onAiTranslateAll: () => void
   getSkuImageSrc: (sku: { imagePath: string; previewUrl?: string }) => string
 }
 
@@ -49,7 +51,9 @@ export function SkuTableSection({
   onUpdateSkuItem,
   onCopyPreviousSku,
   onAiTranslateSku,
+  onAiTranslateAll,
   translatingSkuCode,
+  batchTranslating,
   getSkuImageSrc,
 }: SkuTableSectionProps): JSX.Element {
   return (
@@ -57,6 +61,25 @@ export function SkuTableSection({
       <h3 className="text-md font-medium text-[var(--color-text-primary)] mb-4">
         SKU 规格管理
       </h3>
+
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={onAiTranslateAll}
+          disabled={batchTranslating}
+          className="px-3 py-1.5 text-xs border border-purple-200 text-purple-600 bg-purple-50
+                     hover:bg-purple-100 rounded disabled:opacity-50 disabled:cursor-not-allowed
+                     transition-colors duration-150 flex items-center gap-1"
+        >
+          {batchTranslating ? (
+            <>
+              <span className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+              批量翻译中...
+            </>
+          ) : (
+            '✨ 批量翻译全部'
+          )}
+        </button>
+      </div>
 
       {/* 批量填充栏 */}
       <div className="mb-4 flex items-end gap-3 flex-wrap">

@@ -191,6 +191,7 @@ export function ProductForm(): JSX.Element {
   const [shopeeAiLoading, setShopeeAiLoading] = useState(false)
   const [shopeeAiError, setShopeeAiError] = useState<string | null>(null)
   const [translatingSkuCode, setTranslatingSkuCode] = useState<string | null>(null)
+  const [batchTranslating, setBatchTranslating] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -568,7 +569,7 @@ export function ProductForm(): JSX.Element {
     try {
       const result = await window.electronAPI.callTranslateSku({
         chineseTitle: productInfo.title,
-        category: st.currentSpu?.categoryCode || '',
+        category: currentSpu?.categoryCode || '',
         skuName: sku.colorName,
         skuFileName: sku.imagePath?.replace(/^.*[\\/]/, '') || '',
         skuImagePath: sku.imagePath,
@@ -583,6 +584,56 @@ export function ProductForm(): JSX.Element {
         if (targetIdx !== -1) {
           st2.updateSkuItem(targetIdx, { skuNameEn: result.data.nameEn })
         }
+      }
+    } catch (err) {
+      console.error('[SKU Translate] 异常:', err)
+    } finally {
+      setTranslatingSkuCode(null)
+    }
+  }
+
+  // v4.5 批量 SKU 翻译
+  const handleTranslateAllSkus = async (): Promise<void> => {
+    if (!window.electronAPI) return
+    const st = useSorterStore.getState()
+    const needTranslate = st.skuList
+      .map((sku, i) => ({ sku, i }))
+      .filter(({ sku }) => !sku.skuNameEn && sku.colorName)
+
+    if (needTranslate.length === 0) return
+
+    setBatchTranslating(true)
+    try {
+      const result = await window.electronAPI.callTranslateSkuBatch({
+        skuList: needTranslate.map(({ sku }) => ({
+          id: sku.skuCode || sku.colorName,
+          skuName: sku.colorName,
+          skuFileName: sku.imagePath?.replace(/^.*[\\/]/, '') || '',
+          skuImagePath: sku.imagePath,
+        })),
+        title: productInfo.title,
+        category: currentSpu?.categoryCode || '',
+        aiConfigOverrides: aiConfig,
+      })
+
+      if (result.success && result.data?.results) {
+        const st2 = useSorterStore.getState()
+        for (const r of result.data.results) {
+          if (!r.nameEn) continue
+          const targetIdx = st2.skuList.findIndex(
+            (s) => s.skuCode === r.id || s.colorName === r.id
+          )
+          if (targetIdx !== -1) {
+            st2.updateSkuItem(targetIdx, { skuNameEn: r.nameEn })
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Batch Translate] 异常:', err)
+    } finally {
+      setBatchTranslating(false)
+    }
+  }
       } else {
         console.error('[SKU Translate] 翻译失败:', result.error?.message)
       }
@@ -771,6 +822,8 @@ export function ProductForm(): JSX.Element {
           onCopyPreviousSku={handleCopyPreviousSku}
           onAiTranslateSku={handleTranslateSku}
           translatingSkuCode={translatingSkuCode}
+          batchTranslating={batchTranslating}
+          onAiTranslateAll={handleTranslateAllSkus}
           getSkuImageSrc={getSkuImageSrc}
         />
 

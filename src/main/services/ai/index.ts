@@ -209,3 +209,90 @@ Return ONLY the English name, no JSON, no explanation. Just the name.`
     return { success: false, error: normalizeAiError(error) }
   }
 }
+
+// ==================== 批量 SKU 英文翻译 ====================
+
+export interface TranslateSkuBatchInput {
+  skuList: Array<{ id: string; skuName: string; skuFileName?: string; skuImagePath?: string }>
+  title: string
+  category: string
+  aiConfigOverrides?: Partial<AiProviderConfig>
+}
+
+export interface TranslateSkuBatchResult {
+  results: Array<{ id: string; nameEn: string }>
+}
+
+export async function translateSkuBatch(
+  input: TranslateSkuBatchInput,
+): Promise<AiCallResult<TranslateSkuBatchResult>> {
+  try {
+    const config = input.aiConfigOverrides?.apiKey
+      ? (input.aiConfigOverrides as AiProviderConfig)
+      : await loadAiConfig()
+
+    if (!config.apiKey) {
+      return { success: false, error: { type: 'ApiKeyMissing', message: '请先配置 AI API Key' } }
+    }
+
+    const contentParts: unknown[] = []
+
+    // 每个 SKU: 文本标识 + 图片
+    for (const sku of input.skuList) {
+      contentParts.push({
+        type: 'text',
+        text: `SKU id="${sku.id}": 中文名="${sku.skuName}"${sku.skuFileName ? ` | 文件名="${sku.skuFileName}"` : ''}`,
+      })
+      if (sku.skuImagePath) {
+        try {
+          const b64 = await compressImageToBase64(sku.skuImagePath)
+          contentParts.push({ type: 'image_url', image_url: { url: b64 } })
+        } catch { /* skip failed image */ }
+      }
+    }
+
+    // 翻译规则 prompt
+    contentParts.push({
+      type: 'text',
+      text: `Translate ALL SKU variants above to natural English e-commerce names.
+
+[CONTEXT]
+Product: ${input.title || '(not set)'} | Category: ${input.category || '(not specified)'}
+
+[RULES]
+- Each SKU is a VARIANT of the product above
+- Combine: variant identifier + product type = natural English name
+- Example: product="超Q彩虹毛衣小熊挂件", SKU="橙色" → "Orange Sweater Bear Charm"
+- "蝴蝶结"→Bow, "毛衣"→Sweater/Knit, "挂件"→Charm/Pendant, "彩虹"→Rainbow, "小熊"→Bear/Teddy
+- 2-5 words, Title Case, DO NOT output bare color words
+
+Return ONLY valid JSON:
+{ "results": [{ "id": "SKU_ID_HERE", "nameEn": "Translated Name" }] }
+The results array must have the same count and same id values as the input SKU list.`,
+    })
+
+    const response = await callDoubaoApi(config, {
+      messages: [{ role: 'user', content: contentParts }],
+      maxTokens: 200,
+      temperature: 0.5,
+    })
+
+    // 解析 JSON 返回
+    const cleaned = response.content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+    const firstBrace = cleaned.indexOf('{')
+    const lastBrace = cleaned.lastIndexOf('}')
+    const jsonStr = firstBrace !== -1 && lastBrace > firstBrace
+      ? cleaned.slice(firstBrace, lastBrace + 1)
+      : cleaned
+
+    const parsed = JSON.parse(jsonStr) as { results?: Array<{ id: string; nameEn: string }> }
+    const results = (parsed.results || []).map((r) => ({
+      id: r.id || '',
+      nameEn: (r.nameEn || '').replace(/['"]/g, '').trim(),
+    }))
+
+    return { success: true, data: { results } }
+  } catch (error) {
+    return { success: false, error: normalizeAiError(error) }
+  }
+}

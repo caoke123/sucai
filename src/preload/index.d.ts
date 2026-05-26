@@ -79,6 +79,12 @@ declare global {
       callSingleSkuVision: (payload: CallSingleSkuPayload) => Promise<{ success: boolean; specName?: string; error?: string }>
       callShopeeEnglish: (payload: CallShopeeEnglishPayload) => Promise<CallShopeeEnglishResult>
       callTranslateSku: (payload: CallTranslateSkuPayload) => Promise<CallTranslateSkuResult>
+      callTranslateSkuBatch: (payload: {
+        skuList: Array<{ id: string; skuName: string; skuFileName?: string; skuImagePath?: string }>
+        title: string
+        category: string
+        aiConfigOverrides?: AiConfig
+      }) => Promise<{ success: boolean; data?: { results: Array<{ id: string; nameEn: string }> }; error?: { type: string; message: string } }>
       r2ConfigGet: () => Promise<R2Config>
       r2ConfigSet: (config: Partial<R2Config>) => Promise<void>
       r2ConfigTest: () => Promise<{ success: boolean; error?: string }>

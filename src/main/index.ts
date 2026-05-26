@@ -23,6 +23,7 @@ import {
   saveConfig,
   generateShopeeEnglish,
   translateSingleSku,
+  translateSkuBatch,
 } from './services/ai'
 import type { AiProviderConfig } from './services/ai/provider/doubaoProvider'
 
@@ -107,11 +108,7 @@ function createWindow(): void {
           contentParts.push({ type: 'image_url', image_url: { url: b64 } })
         }
 
-        // SKU 图：每张图前附加唯一 ID 文本标签；已有名称的不传图片
-        const existing = payload.existingNames || []
-        for (let i = 0; i < payload.skuBase64List.length; i++) {
-          const skuId = (payload.skuIds[i] || `sku-${i}`).replace(/\\/g, '/')
-          if (existing[i]) {
+        // 结构化上下文 (仅 push 一次, 在 SKU 循环之前)
         contentParts.push({
           type: 'text',
           text: `[PRODUCT CONTEXT — PRIMARY SOURCE, READ FIRST]
@@ -131,41 +128,25 @@ ${payload.folderName ? `素材包文件夹: ${payload.folderName}\n` : ''}${payl
 - 不要仅输出颜色词！结合标题/文件名确定这是什么产品
 - 款式名称应反映具体变体特征
 - 2-10个中文字符
+- 如果标记为"已有名称，无需识别"，请跳过，不要在 skus 数组中返回它
 
 ⚠️ 仅输出纯 JSON，格式：{"title":"...","shortTitle":"...","category":"...","description":"...","skus":[{"skuId":"...","skuName":"..."}]}`,
         })
+
+        // SKU 图：每张图前附加唯一 ID 文本标签；已有名称的不传图片
+        const existing = payload.existingNames || []
+        for (let i = 0; i < payload.skuBase64List.length; i++) {
+          const skuId = (payload.skuIds[i] || `sku-${i}`).replace(/\\/g, '/')
+          if (existing[i]) {
+            contentParts.push({
+              type: 'text',
+              text: `SKU_ID: ${skuId} — 已有名称"${existing[i]}"，无需识别，请勿在skus数组中返回`,
+            })
           } else if (payload.skuBase64List[i]) {
             contentParts.push({ type: 'text', text: `SKU_ID: ${skuId} — 请识别此图的款式名称` })
             contentParts.push({ type: 'image_url', image_url: { url: payload.skuBase64List[i] } })
           }
         }
-
-        contentParts.push({
-          type: 'text',
-          text: `你是一个跨境电商选品与数据录入专家。我为你提供了一系列产品图片，在每张 SKU 图片之前，我都用文本标明了该图片的【SKU_ID】。
-
-请你仔细观察标记为"请识别此图"的 SKU 图片，为它生成一个精准且吸引人的【SKU 款式名称】。
-- 不要仅局限于颜色！可以是款式、样式、图案、材质或特定风格（如："miu系挂绳针织裙"、"复古做旧款"、"珍珠白蝴蝶结"、"库洛米同款"）。
-- 名字简练，控制在 10 个中文字符以内。
-- 如果标记为"已有名称，无需识别"，请跳过，不要在 skus 数组中返回它。
-
-此外：
-1. [category] 必须且只能从 "包包挂件"、"手机挂件"、"车内配饰"、"毛绒玩具" 中选择。
-2. 为产品生成标题(title，≤60字)、短标题(shortTitle，≤10字)、卖点描述(description)。
-
-⚠️【极其重要】：在输出的 JSON 中，skus 数组内的每一个对象，必须包含 skuId 字段，且该字段的值必须与我发给你的图片标签【SKU_ID】完全一致！绝对不能张冠李戴！
-
-输出纯 JSON，不带 Markdown 代码块，格式如下：
-{
-  "title": "...",
-  "shortTitle": "...",
-  "category": "包包挂件",
-  "description": "...",
-  "skus": [
-    { "skuId": "a_001", "skuName": "茱萸粉毛球款" }
-  ]
-}`,
-        })
 
         const res = await fetch(`${config.baseUrl}/chat/completions`, {
           method: 'POST',
@@ -303,6 +284,33 @@ ${payload.folderName ? `素材包文件夹: ${payload.folderName}\n` : ''}${payl
       }
     ): Promise<{ success: boolean; data?: { nameEn: string }; error?: { type: string; message: string } }> => {
       const result = await translateSingleSku(payload)
+
+      if (!result.success) {
+        return { success: false, error: { type: result.error!.type, message: result.error!.message } }
+      }
+
+      return { success: true, data: result.data }
+    }
+  )
+
+  // v4.5 批量 SKU 英文翻译
+  ipcMain.handle(
+    'call-translate-sku-batch',
+    async (
+      _event,
+      payload: {
+        skuList: Array<{ id: string; skuName: string; skuFileName?: string; skuImagePath?: string }>
+        title: string
+        category: string
+        aiConfigOverrides?: { apiKey: string; baseUrl: string; model: string }
+      }
+    ): Promise<{ success: boolean; data?: { results: Array<{ id: string; nameEn: string }> }; error?: { type: string; message: string } }> => {
+      const result = await translateSkuBatch({
+        skuList: payload.skuList,
+        title: payload.title,
+        category: payload.category,
+        aiConfigOverrides: payload.aiConfigOverrides,
+      })
 
       if (!result.success) {
         return { success: false, error: { type: result.error!.type, message: result.error!.message } }

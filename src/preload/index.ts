@@ -105,6 +105,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   callTranslateSku: (payload: CallTranslateSkuPayload): Promise<CallTranslateSkuResult> =>
     ipcRenderer.invoke('call-translate-sku', payload),
 
+  // v4.5 批量 SKU 翻译
+  callTranslateSkuBatch: (payload: {
+    skuList: Array<{ id: string; skuName: string; skuFileName?: string; skuImagePath?: string }>
+    title: string
+    category: string
+    aiConfigOverrides?: AiConfig
+  }): Promise<{ success: boolean; data?: { results: Array<{ id: string; nameEn: string }> }; error?: { type: string; message: string } }> =>
+    ipcRenderer.invoke('call-translate-sku-batch', payload),
+
   // R2 云存储配置
   r2ConfigGet: (): Promise<R2Config> =>
     ipcRenderer.invoke('r2-config-get'),
