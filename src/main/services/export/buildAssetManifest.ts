@@ -4,6 +4,7 @@ import path from 'path'
 import { LABEL_TO_FOLDER, FOLDER_TO_R2_CATEGORY } from '@shared/constants'
 import type { ProductAssets, AssetFile, R2Metadata } from '@shared/types'
 import type { RenamedFile } from './renameImages'
+import { normalizeFilePath } from '@shared/utils/normalizePath'
 
 export interface BuildAssetManifestInput {
   packagePath: string
@@ -47,7 +48,7 @@ export function buildAssetManifest(input: BuildAssetManifestInput): ProductAsset
     const asset: AssetFile = {
       fileName: file.newFileName,
       relativePath,
-      localPath: file.destPath,
+      localPath: normalizeFilePath(file.destPath),
       r2Url,
     }
 
