@@ -46,7 +46,8 @@ src/
 
 ## 文档
 
-- [V4 技术架构白皮书](docs/V4_ARCHITECTURE.md) — 完整系统设计文档
+- [完整开发文档](docs/开发文档.md) — 技术架构 / 开发指南 / API 参考
+- [V4 技术架构白皮书](docs/V4_ARCHITECTURE.md)
 - [Release Checklist](docs/release-checklist.md)
 
 ## 开发
