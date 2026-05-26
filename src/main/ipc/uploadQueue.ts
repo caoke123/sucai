@@ -307,14 +307,14 @@ export class UploadQueueManager {
 
         const finalJson = { ...originalJson }
 
-        // 建立 localPath → url 快速索引
+        // 建立 localPath → url 快速索引 (normalize 路径确保跨平台匹配)
         const pathToUrl = new Map<string, string>()
         for (const catImages of Object.values(r2Field.images)) {
           for (const img of (catImages as Array<{ fileName: string; url: string }>)) {
             for (const up of uploadedPaths) {
               const upName = up.relativePath.replace(/\\/g, '/').split('/').pop() || ''
               if (upName === img.fileName) {
-                const fullPath = path.join(basePath, up.relativePath)
+                const fullPath = path.normalize(path.join(basePath, up.relativePath))
                 pathToUrl.set(fullPath, img.url)
                 break
               }
@@ -323,7 +323,6 @@ export class UploadQueueManager {
         }
 
         console.log(`[R2 Enrich] pathToUrl map has ${pathToUrl.size} entries`)
-        console.log('[R2 Enrich] pathToUrl keys:', [...pathToUrl.keys()].slice(0, 3))
 
         // v4.5: enrich images.main[]/detail[]
         const existingImages = originalJson.images as Record<string, Array<Record<string, unknown>>> | undefined
@@ -333,12 +332,13 @@ export class UploadQueueManager {
           for (const cat of ['main', 'detail']) {
             let catMatch = 0; let catMiss = 0
             enrichedImages[cat] = (existingImages[cat] || []).map((img: Record<string, unknown>) => {
-              const localPath = img.localPath as string
+              const rawPath = (img.localPath as string) || ''
+              const localPath = rawPath ? path.normalize(rawPath) : ''
               const url = localPath ? pathToUrl.get(localPath) : undefined
               if (url) { catMatch++ } else { catMiss++ }
               return url ? { ...img, r2Url: url } : img
             })
-            console.log(`[R2 Enrich] ${cat}: ${catMatch} matched, ${catMiss} missed. Sample localPath: ${(existingImages[cat]?.[0] as any)?.localPath || 'N/A'}`)
+            console.log(`[R2 Enrich] ${cat}: ${catMatch} matched, ${catMiss} missed`)
           }
           finalJson.images = enrichedImages as unknown as typeof originalJson.images
 
@@ -348,14 +348,15 @@ export class UploadQueueManager {
             const imagesField = (sku as Record<string, unknown>).images as Record<string, unknown> | undefined
             const primary = imagesField?.primary as Record<string, unknown> | undefined
             if (primary?.localPath) {
-              const url = pathToUrl.get(primary.localPath as string)
+              const normalizedPath = path.normalize(primary.localPath as string)
+              const url = pathToUrl.get(normalizedPath)
               if (url) { skuMatch++; return { ...sku, images: { primary: { ...primary, r2Url: url } } } }
               else { skuMiss++ }
             }
             return sku
           })
           finalJson.skus = enrichedSkus as typeof originalJson.skus
-          console.log(`[R2 Enrich] skus: ${skuMatch} matched, ${skuMiss} missed. Sample primary.localPath: ${((finalJson.skus as any)?.[0]?.images?.primary?.localPath) || 'N/A'}`)
+          console.log(`[R2 Enrich] skus: ${skuMatch} matched, ${skuMiss} missed`)
         } else {
           // 兼容旧 v4 格式 (assets)
           const existingAssets = originalJson.assets as Record<string, Array<Record<string, unknown>>> | undefined
@@ -404,6 +405,7 @@ export class UploadQueueManager {
             JSON.stringify(finalJson, null, 2),
             'utf-8'
           )
+          console.log('[R2 WriteBack] 本地 product.json 已更新 (含 r2Urls)')
         } catch (writeErr) {
           console.error('[R2 Upload] 写回本地 product.json 失败:', (writeErr as Error).message)
         }
