@@ -200,6 +200,7 @@ export class UploadQueueManager {
         try {
           const raw = fs.readFileSync(path.join(basePath, productJsonFile), 'utf-8')
           originalJson = JSON.parse(raw)
+          console.log('[R2 Enrich] originalJson keys:', Object.keys(originalJson))
         } catch {
           // product.json 损坏时使用空对象
         }
@@ -310,43 +311,51 @@ export class UploadQueueManager {
         const pathToUrl = new Map<string, string>()
         for (const catImages of Object.values(r2Field.images)) {
           for (const img of (catImages as Array<{ fileName: string; url: string }>)) {
-            // 通过 fileName 在 uploadedPaths 中找到对应 localPath
             for (const up of uploadedPaths) {
               const upName = up.relativePath.replace(/\\/g, '/').split('/').pop() || ''
               if (upName === img.fileName) {
-                pathToUrl.set(path.join(basePath, up.relativePath), img.url)
+                const fullPath = path.join(basePath, up.relativePath)
+                pathToUrl.set(fullPath, img.url)
                 break
               }
             }
           }
         }
 
+        console.log(`[R2 Enrich] pathToUrl map has ${pathToUrl.size} entries`)
+        console.log('[R2 Enrich] pathToUrl keys:', [...pathToUrl.keys()].slice(0, 3))
+
         // v4.5: enrich images.main[]/detail[]
         const existingImages = originalJson.images as Record<string, Array<Record<string, unknown>>> | undefined
         if (existingImages) {
+          console.log('[R2 Enrich] v4.5 images path detected')
           const enrichedImages: Record<string, Array<Record<string, unknown>>> = {}
           for (const cat of ['main', 'detail']) {
+            let catMatch = 0; let catMiss = 0
             enrichedImages[cat] = (existingImages[cat] || []).map((img: Record<string, unknown>) => {
               const localPath = img.localPath as string
               const url = localPath ? pathToUrl.get(localPath) : undefined
+              if (url) { catMatch++ } else { catMiss++ }
               return url ? { ...img, r2Url: url } : img
             })
+            console.log(`[R2 Enrich] ${cat}: ${catMatch} matched, ${catMiss} missed. Sample localPath: ${(existingImages[cat]?.[0] as any)?.localPath || 'N/A'}`)
           }
           finalJson.images = enrichedImages as unknown as typeof originalJson.images
 
           // v4.5: enrich skus[].images.primary
+          let skuMatch = 0; let skuMiss = 0
           const enrichedSkus = ((finalJson.skus || originalJson.skus) as Array<Record<string, unknown>>).map((sku) => {
             const imagesField = (sku as Record<string, unknown>).images as Record<string, unknown> | undefined
             const primary = imagesField?.primary as Record<string, unknown> | undefined
             if (primary?.localPath) {
               const url = pathToUrl.get(primary.localPath as string)
-              if (url) {
-                return { ...sku, images: { primary: { ...primary, r2Url: url } } }
-              }
+              if (url) { skuMatch++; return { ...sku, images: { primary: { ...primary, r2Url: url } } } }
+              else { skuMiss++ }
             }
             return sku
           })
           finalJson.skus = enrichedSkus as typeof originalJson.skus
+          console.log(`[R2 Enrich] skus: ${skuMatch} matched, ${skuMiss} missed. Sample primary.localPath: ${((finalJson.skus as any)?.[0]?.images?.primary?.localPath) || 'N/A'}`)
         } else {
           // 兼容旧 v4 格式 (assets)
           const existingAssets = originalJson.assets as Record<string, Array<Record<string, unknown>>> | undefined
