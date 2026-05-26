@@ -297,7 +297,7 @@ export class UploadQueueManager {
         this.pushStateToRenderer()
 
         const skus = (originalJson.skus as Array<Record<string, unknown>>) || []
-        const { r2Field, updatedSkus } = buildR2Metadata({
+        const { r2Field } = buildR2Metadata({
           folderName: task.folderName,
           baseUrl,
           uploadedPaths,
@@ -306,34 +306,47 @@ export class UploadQueueManager {
 
         const finalJson = { ...originalJson }
 
-        // v4.5: enrich images.main[]/detail[]/skus[].images.primary
+        // 建立 localPath → url 快速索引
+        const pathToUrl = new Map<string, string>()
+        for (const catImages of Object.values(r2Field.images)) {
+          for (const img of (catImages as Array<{ fileName: string; url: string }>)) {
+            // 通过 fileName 在 uploadedPaths 中找到对应 localPath
+            for (const up of uploadedPaths) {
+              const upName = up.relativePath.replace(/\\/g, '/').split('/').pop() || ''
+              if (upName === img.fileName) {
+                pathToUrl.set(path.join(basePath, up.relativePath), img.url)
+                break
+              }
+            }
+          }
+        }
+
+        // v4.5: enrich images.main[]/detail[]
         const existingImages = originalJson.images as Record<string, Array<Record<string, unknown>>> | undefined
         if (existingImages) {
           const enrichedImages: Record<string, Array<Record<string, unknown>>> = {}
           for (const cat of ['main', 'detail']) {
-            enrichedImages[cat] = (existingImages[cat] || []).map((d: Record<string, unknown>) => {
-              const fileName = d.fileName as string
-              const catImages = (r2Field.images as Record<string, Array<{ fileName: string; url: string }>>)[cat] || []
-              const matched = catImages.find((img: { fileName: string }) => img.fileName === fileName)
-              return matched ? { ...d, r2Url: matched.url } : d
+            enrichedImages[cat] = (existingImages[cat] || []).map((img: Record<string, unknown>) => {
+              const localPath = img.localPath as string
+              const url = localPath ? pathToUrl.get(localPath) : undefined
+              return url ? { ...img, r2Url: url } : img
             })
           }
           finalJson.images = enrichedImages as unknown as typeof originalJson.images
 
-          // enrich skus[].images.primary
-          const enrichedSkus = (updatedSkus as Array<Record<string, unknown>>).map((sku) => {
-            const primary = (sku as Record<string, unknown>).images as Record<string, unknown> | undefined
-            if (primary?.primary) {
-              const p = primary.primary as Record<string, unknown>
-              const skuImagesList = (r2Field.images as Record<string, Array<{ fileName: string; url: string }>>).sku || []
-              const matched = skuImagesList.find((img: { fileName: string }) => img.fileName === p.fileName)
-              if (matched) {
-                return { ...sku, images: { primary: { ...p, r2Url: matched.url } } }
+          // v4.5: enrich skus[].images.primary
+          const enrichedSkus = ((finalJson.skus || originalJson.skus) as Array<Record<string, unknown>>).map((sku) => {
+            const imagesField = (sku as Record<string, unknown>).images as Record<string, unknown> | undefined
+            const primary = imagesField?.primary as Record<string, unknown> | undefined
+            if (primary?.localPath) {
+              const url = pathToUrl.get(primary.localPath as string)
+              if (url) {
+                return { ...sku, images: { primary: { ...primary, r2Url: url } } }
               }
             }
             return sku
           })
-          finalJson.skus = enrichedSkus as typeof updatedSkus
+          finalJson.skus = enrichedSkus as typeof originalJson.skus
         } else {
           // 兼容旧 v4 格式 (assets)
           const existingAssets = originalJson.assets as Record<string, Array<Record<string, unknown>>> | undefined
@@ -341,15 +354,17 @@ export class UploadQueueManager {
             const enrichedAssets: Record<string, Array<Record<string, unknown>>> = {}
             for (const [cat, descriptors] of Object.entries(existingAssets)) {
               enrichedAssets[cat] = (descriptors as Array<Record<string, unknown>>).map((d) => {
-                const fileName = d.fileName as string
-                const catImages = (r2Field.images as Record<string, Array<{ fileName: string; url: string }>>)[cat] || []
-                const matched = catImages.find((img: { fileName: string }) => img.fileName === fileName)
-                return matched ? { ...d, r2Url: matched.url, uploaded: true } : d
+                const localPath = d.localPath as string
+                const url = localPath ? pathToUrl.get(localPath) : undefined
+                return url ? { ...d, r2Url: url, uploaded: true } : d
               })
             }
             finalJson.assets = enrichedAssets as unknown as typeof originalJson.assets
           }
-          finalJson.skus = updatedSkus
+          finalJson.skus = skus.map((sku) => {
+            const url = (sku.imageUrl as string) || pathToUrl.get((sku.imagePath as string) || '')
+            return url ? { ...sku, imageUrl: url } : sku
+          })
         }
 
         // 精简 r2: 仅保留 basePath + syncedAt
