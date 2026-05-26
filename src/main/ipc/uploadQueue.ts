@@ -187,9 +187,6 @@ export class UploadQueueManager {
         try {
           const raw = fs.readFileSync(path.join(basePath, productJsonFile), 'utf-8')
           productJson = JSON.parse(raw)
-          const imgField = productJson.images as Record<string, Array<Record<string, unknown>>> | undefined
-          const skuField = productJson.skus as Array<Record<string, unknown>> | undefined
-          uploadLog(taskId, `productJson loaded: images=${!!imgField} main=${imgField?.main?.length || 0} detail=${imgField?.detail?.length || 0} skus=${skuField?.length || 0}`)
         } catch { /* ignore */ }
       }
 
@@ -222,7 +219,7 @@ export class UploadQueueManager {
         const fileBuffer = fs.readFileSync(entry.localPath)
         const s3Key = entry.r2Key
 
-        uploadLog(taskId, `upload: ${entry.relativePath} (type=${entry.type} skuCode=${entry.skuCode || '-'})`)
+        uploadLog(taskId, `upload: ${entry.relativePath}`)
 
         await client.send(
           new PutObjectCommand({
@@ -245,15 +242,10 @@ export class UploadQueueManager {
 
         // 即时回写 product.json
         entry.r2Url = cdnUrl
-        const enriched = eagerEnrichProductJson(productJson, entry)
-
-        uploadLog(taskId, `enrich: ${entry.type} ${entry.relativePath} → ${enriched ? 'MATCH' : 'MISS'}`)
+        eagerEnrichProductJson(productJson, entry)
 
         // 原子写入 product.json
-        if (enriched) {
-          atomicWriteJson(path.join(basePath, 'product.json'), productJson)
-          uploadLog(taskId, `writeBack: ${entry.type} done`)
-        }
+        atomicWriteJson(path.join(basePath, 'product.json'), productJson)
 
         // 持久化 manifest
         saveManifest(manifest)
@@ -298,18 +290,6 @@ export class UploadQueueManager {
         basePath: `products/${task.folderName}/`,
         syncedAt: new Date().toISOString(),
       }
-
-      // 最终诊断
-      const finalImages = productJson.images as Record<string, Array<Record<string, unknown>>> | undefined
-      const finalSkus = productJson.skus as Array<Record<string, unknown>> | undefined
-      const mainSample = finalImages?.main?.[0]?.r2Url as string || '(empty)'
-      const detailSample = finalImages?.detail?.[0]?.r2Url as string || '(empty)'
-      const skuSample = (finalSkus?.[0] as Record<string, unknown>)?.images
-        ? ((finalSkus?.[0] as Record<string, unknown>).images as Record<string, unknown>)?.primary
-          ? (((finalSkus?.[0] as Record<string, unknown>).images as Record<string, unknown>).primary as Record<string, unknown>)?.r2Url || '(empty)'
-          : '(empty)'
-        : '(empty)'
-      uploadLog(taskId, `FINAL: main[0].r2Url=${mainSample} detail[0].r2Url=${detailSample} sku[0].primary.r2Url=${skuSample}`)
 
       const finalS3Key = `products/${task.folderName}/product.json`
       await client.send(
