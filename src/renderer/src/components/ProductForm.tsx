@@ -190,6 +190,7 @@ export function ProductForm(): JSX.Element {
   const [aiError, setAiError] = useState<string | null>(null)
   const [shopeeAiLoading, setShopeeAiLoading] = useState(false)
   const [shopeeAiError, setShopeeAiError] = useState<string | null>(null)
+  const [skuAiLoadingIndex, setSkuAiLoadingIndex] = useState<number | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -347,11 +348,18 @@ export function ProductForm(): JSX.Element {
         }
       }
 
+      // 收集原始文件名
+      const allOriginalNames = images.map((img) => img.fileName || '')
+
       const infoResult = await window.electronAPI.callAiVision({
         mainBase64List: mainB64List,
         skuBase64List,
         skuIds,
         existingNames,
+        productTitle: st.productInfo.title || undefined,
+        productCategory: st.currentSpu?.categoryCode || undefined,
+        originalFileNames: allOriginalNames,
+        folderName: st.productCode ? `[${st.productCode}] ${st.shortTitle}_素材包` : undefined,
         aiConfig,
       })
 
@@ -509,12 +517,16 @@ export function ProductForm(): JSX.Element {
       const mainImagePath = mainImages.length > 0 ? mainImages[0].originalPath : undefined
 
       const skuNames = list.map((sku) => sku.colorName)
+      const originalFileNames = list.map((sku) => {
+        return sku.imagePath?.replace(/^.*[\\/]/, '') || ''
+      })
 
       const result = await window.electronAPI.callShopeeEnglish({
         chineseTitle: productInfo.title,
         chineseDescription: productInfo.description,
         category: st.currentSpu?.categoryCode || '',
         skuNames,
+        originalFileNames,
         mainImagePath,
         aiConfigOverrides: aiConfig,
       })
@@ -541,6 +553,37 @@ export function ProductForm(): JSX.Element {
       setShopeeAiError(`AI 调用异常: ${(e as Error).message}`)
     } finally {
       setShopeeAiLoading(false)
+    }
+  }
+
+  // v4.5 单 SKU 英文翻译
+  const handleTranslateSku = async (index: number): Promise<void> => {
+    if (!window.electronAPI) return
+    const st = useSorterStore.getState()
+    const sku = st.skuList[index]
+    if (!sku || !sku.colorName) return
+
+    setSkuAiLoadingIndex(index)
+    try {
+      const result = await window.electronAPI.callTranslateSku({
+        chineseTitle: productInfo.title,
+        category: st.currentSpu?.categoryCode || '',
+        skuName: sku.colorName,
+        skuFileName: sku.imagePath?.replace(/^.*[\\/]/, '') || '',
+        skuImagePath: sku.imagePath,
+        aiConfigOverrides: aiConfig,
+      })
+
+      if (result.success && result.data?.nameEn) {
+        const st2 = useSorterStore.getState()
+        st2.updateSkuItem(index, { skuNameEn: result.data.nameEn })
+      } else {
+        console.error('[SKU Translate] 翻译失败:', result.error?.message)
+      }
+    } catch (err) {
+      console.error('[SKU Translate] 异常:', err)
+    } finally {
+      setSkuAiLoadingIndex(null)
     }
   }
 
@@ -720,6 +763,8 @@ export function ProductForm(): JSX.Element {
           onBatchFill={handleBatchFill}
           onUpdateSkuItem={updateSkuItem}
           onCopyPreviousSku={handleCopyPreviousSku}
+          onAiTranslateSku={handleTranslateSku}
+          skuAiLoadingIndex={skuAiLoadingIndex}
           getSkuImageSrc={getSkuImageSrc}
         />
 

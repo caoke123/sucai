@@ -2,6 +2,7 @@ import type { SkuItem } from '@shared/types'
 
 interface SkuTableSectionProps {
   skuList: SkuItem[]
+  skuAiLoadingIndex: number | null
   batchLength: string
   batchWidth: string
   batchHeight: string
@@ -19,6 +20,7 @@ interface SkuTableSectionProps {
   onBatchFill: () => void
   onUpdateSkuItem: (index: number, partial: Partial<SkuItem>) => void
   onCopyPreviousSku: (index: number) => void
+  onAiTranslateSku: (index: number) => void
   getSkuImageSrc: (sku: { imagePath: string; previewUrl?: string }) => string
 }
 
@@ -46,6 +48,8 @@ export function SkuTableSection({
   onBatchFill,
   onUpdateSkuItem,
   onCopyPreviousSku,
+  onAiTranslateSku,
+  skuAiLoadingIndex,
   getSkuImageSrc,
 }: SkuTableSectionProps): JSX.Element {
   return (
@@ -216,15 +220,26 @@ export function SkuTableSection({
               {/* 英文名称 (v4) */}
               <div className="col-span-2">
                 <label className="block text-xs text-[var(--color-text-tertiary)] mb-0.5">英文名称</label>
-                <input
-                  type="text"
-                  value={sku.skuNameEn || ''}
-                  onChange={(e) => onUpdateSkuItem(idx, { skuNameEn: e.target.value })}
-                  placeholder="Pearl White"
-                  className="w-full px-2 py-1.5 border border-[var(--color-border)] rounded text-sm
-                             focus:outline-none focus:border-[var(--color-primary)]
-                             text-[var(--color-text-primary)] bg-white"
-                />
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    value={sku.skuNameEn || ''}
+                    onChange={(e) => onUpdateSkuItem(idx, { skuNameEn: e.target.value })}
+                    placeholder="Pearl White"
+                    className="flex-1 px-2 py-1.5 border border-[var(--color-border)] rounded text-sm
+                               focus:outline-none focus:border-[var(--color-primary)]
+                               text-[var(--color-text-primary)] bg-white"
+                  />
+                  <button
+                    onClick={() => onAiTranslateSku(idx)}
+                    disabled={skuAiLoadingIndex === idx}
+                    className="px-2 py-1.5 text-xs border border-purple-200 text-purple-600 bg-purple-50
+                               hover:bg-purple-100 rounded disabled:opacity-50 disabled:cursor-not-allowed
+                               transition-colors duration-150 whitespace-nowrap shrink-0"
+                  >
+                    {skuAiLoadingIndex === idx ? '·' : '✨'}
+                  </button>
+                </div>
               </div>
 
               {/* 尺寸 */}

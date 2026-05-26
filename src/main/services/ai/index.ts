@@ -73,6 +73,7 @@ export interface GenerateShopeeEnglishInput {
   chineseDescription: string
   category: string
   skuNames: string[]
+  originalFileNames?: string[]
   mainImagePath?: string
   aiConfigOverrides?: Partial<AiProviderConfig>
 }
@@ -108,6 +109,7 @@ export async function generateShopeeEnglish(
       chineseDescription: input.chineseDescription,
       category: input.category,
       skuNames: input.skuNames,
+      originalFileNames: input.originalFileNames,
       mainImageBase64,
     }
 
@@ -134,5 +136,76 @@ export async function generateShopeeEnglish(
   } catch (error) {
     const normalized = normalizeAiError(error)
     return { success: false, error: normalized }
+  }
+}
+
+// ==================== 单 SKU 英文翻译 ====================
+
+export interface TranslateSingleSkuInput {
+  chineseTitle: string
+  category: string
+  skuName: string
+  skuFileName?: string
+  skuImagePath?: string
+  aiConfigOverrides?: Partial<AiProviderConfig>
+}
+
+export async function translateSingleSku(
+  input: TranslateSingleSkuInput,
+): Promise<AiCallResult<{ nameEn: string }>> {
+  try {
+    const config = input.aiConfigOverrides?.apiKey
+      ? (input.aiConfigOverrides as AiProviderConfig)
+      : await loadAiConfig()
+
+    if (!config.apiKey) {
+      return { success: false, error: { type: 'ApiKeyMissing', message: '请先在系统配置中设置 AI API Key' } }
+    }
+
+    let skuImageBase64: string | undefined
+    if (input.skuImagePath) {
+      try {
+        skuImageBase64 = await compressImageToBase64(input.skuImagePath)
+      } catch { /* skip image if failed */ }
+    }
+
+    const fileNameHint = input.skuFileName
+      ? `Original file name: "${input.skuFileName}" (may contain product/variant hints)\n`
+      : ''
+
+    const userPrompt = `Translate this single SKU variant name to a natural English e-commerce name.
+
+[CONTEXT]
+Product Chinese Title: ${input.chineseTitle || '(not set)'}
+Category: ${input.category || '(not specified)'}
+SKU Chinese Name: ${input.skuName}
+${fileNameHint}
+[RULES]
+- This is a VARIANT of the product described in the title
+- Combine: variant identifier + product type = natural English name
+- Example: title="超Q彩虹毛衣小熊挂件", SKU="橙色" → "Orange Sweater Bear Charm"
+- 2-5 words, Title Case
+- DO NOT output bare color words
+
+Return ONLY the English name, no JSON, no explanation. Just the name.`
+
+    const contentParts: unknown[] = [{ type: 'text', text: userPrompt }]
+    if (skuImageBase64) {
+      contentParts.unshift({ type: 'image_url', image_url: { url: skuImageBase64 } })
+    }
+
+    const response = await callDoubaoApi(config, {
+      messages: [
+        { role: 'user', content: contentParts },
+      ],
+      maxTokens: 50,
+      temperature: 0.5,
+    })
+
+    const nameEn = response.content.trim().replace(/['"]/g, '')
+
+    return { success: true, data: { nameEn: nameEn || input.skuName } }
+  } catch (error) {
+    return { success: false, error: normalizeAiError(error) }
   }
 }

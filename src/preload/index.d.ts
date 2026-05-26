@@ -9,6 +9,12 @@ interface AiConfig {
 interface CallAiVisionPayload {
   mainBase64List: string[]
   skuBase64List: string[]
+  skuIds: string[]
+  existingNames?: string[]
+  productTitle?: string
+  productCategory?: string
+  originalFileNames?: string[]
+  folderName?: string
   aiConfig?: AiConfig
 }
 
@@ -28,6 +34,7 @@ interface CallShopeeEnglishPayload {
   chineseDescription: string
   category: string
   skuNames: string[]
+  originalFileNames?: string[]
   mainImagePath?: string
   aiConfigOverrides?: AiConfig
 }
@@ -40,6 +47,21 @@ interface CallShopeeEnglishResult {
     material: string
     skuNamesEn: string[]
   }
+  error?: { type: string; message: string }
+}
+
+interface CallTranslateSkuPayload {
+  chineseTitle: string
+  category: string
+  skuName: string
+  skuFileName?: string
+  skuImagePath?: string
+  aiConfigOverrides?: AiConfig
+}
+
+interface CallTranslateSkuResult {
+  success: boolean
+  data?: { nameEn: string }
   error?: { type: string; message: string }
 }
 
@@ -56,6 +78,7 @@ declare global {
       callAiVision: (payload: CallAiVisionPayload) => Promise<CallAiVisionResult>
       callSingleSkuVision: (payload: CallSingleSkuPayload) => Promise<{ success: boolean; specName?: string; error?: string }>
       callShopeeEnglish: (payload: CallShopeeEnglishPayload) => Promise<CallShopeeEnglishResult>
+      callTranslateSku: (payload: CallTranslateSkuPayload) => Promise<CallTranslateSkuResult>
       r2ConfigGet: () => Promise<R2Config>
       r2ConfigSet: (config: Partial<R2Config>) => Promise<void>
       r2ConfigTest: () => Promise<{ success: boolean; error?: string }>

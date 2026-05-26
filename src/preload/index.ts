@@ -10,6 +10,13 @@ interface AiConfig {
 interface CallAiVisionPayload {
   mainBase64List: string[]
   skuBase64List: string[]
+  skuIds: string[]
+  existingNames?: string[]
+  productTitle?: string
+  productCategory?: string
+  originalFileNames?: string[]
+  folderName?: string
+  aiConfig?: AiConfig
 }
 
 interface CallAiVisionResult {
@@ -35,6 +42,21 @@ interface CallShopeeEnglishResult {
     material: string
     skuNamesEn: string[]
   }
+  error?: { type: string; message: string }
+}
+
+interface CallTranslateSkuPayload {
+  chineseTitle: string
+  category: string
+  skuName: string
+  skuFileName?: string
+  skuImagePath?: string
+  aiConfigOverrides?: AiConfig
+}
+
+interface CallTranslateSkuResult {
+  success: boolean
+  data?: { nameEn: string }
   error?: { type: string; message: string }
 }
 
@@ -78,6 +100,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // v4 Shopee 英文生成
   callShopeeEnglish: (payload: CallShopeeEnglishPayload): Promise<CallShopeeEnglishResult> =>
     ipcRenderer.invoke('call-shopee-english', payload),
+
+  // v4.5 单 SKU 英文翻译
+  callTranslateSku: (payload: CallTranslateSkuPayload): Promise<CallTranslateSkuResult> =>
+    ipcRenderer.invoke('call-translate-sku', payload),
 
   // R2 云存储配置
   r2ConfigGet: (): Promise<R2Config> =>

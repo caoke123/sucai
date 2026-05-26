@@ -22,6 +22,7 @@ import {
   getConfig,
   saveConfig,
   generateShopeeEnglish,
+  translateSingleSku,
 } from './services/ai'
 import type { AiProviderConfig } from './services/ai/provider/doubaoProvider'
 
@@ -86,6 +87,10 @@ function createWindow(): void {
         skuBase64List: string[];
         skuIds: string[];
         existingNames?: string[];
+        productTitle?: string;
+        productCategory?: string;
+        originalFileNames?: string[];
+        folderName?: string;
         aiConfig?: { apiKey: string; baseUrl: string; model: string }
       }
     ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> => {
@@ -107,10 +112,28 @@ function createWindow(): void {
         for (let i = 0; i < payload.skuBase64List.length; i++) {
           const skuId = (payload.skuIds[i] || `sku-${i}`).replace(/\\/g, '/')
           if (existing[i]) {
-            contentParts.push({
-              type: 'text',
-              text: `SKU_ID: ${skuId} — 已有名称"${existing[i]}"，无需识别，请勿在skus数组中返回`,
-            })
+        contentParts.push({
+          type: 'text',
+          text: `[PRODUCT CONTEXT — PRIMARY SOURCE, READ FIRST]
+${payload.folderName ? `素材包文件夹: ${payload.folderName}\n` : ''}${payload.productTitle ? `产品中文标题: ${payload.productTitle}\n` : ''}${payload.productCategory ? `产品类目: ${payload.productCategory}\n` : ''}${payload.originalFileNames && payload.originalFileNames.length > 0 ? `原始图片文件名:\n${payload.originalFileNames.map((f, i) => `  [${i}] ${f}`).join('\n')}\n` : ''}
+[YOUR TASK]
+你是一个跨境电商选品与数据录入专家。
+
+基于以上产品上下文（文件夹名/标题/原始文件名），结合图片内容作为辅助确认：
+
+1. 确认或优化产品中文标题(title, ≤60字)
+2. 生成短标题(shortTitle, ≤10字)，用于文件夹命名
+3. 从 "包包挂件"、"手机挂件"、"车内配饰"、"毛绒玩具" 中选择最合适的类目
+4. 生成卖点描述(description)
+5. 对标记为"请识别此图"的 SKU 图片生成款式名称
+
+[SKU 命名规则]
+- 不要仅输出颜色词！结合标题/文件名确定这是什么产品
+- 款式名称应反映具体变体特征
+- 2-10个中文字符
+
+⚠️ 仅输出纯 JSON，格式：{"title":"...","shortTitle":"...","category":"...","description":"...","skus":[{"skuId":"...","skuName":"..."}]}`,
+        })
           } else if (payload.skuBase64List[i]) {
             contentParts.push({ type: 'text', text: `SKU_ID: ${skuId} — 请识别此图的款式名称` })
             contentParts.push({ type: 'image_url', image_url: { url: payload.skuBase64List[i] } })
@@ -239,6 +262,7 @@ function createWindow(): void {
         chineseDescription: string
         category: string
         skuNames: string[]
+        originalFileNames?: string[]
         mainImagePath?: string
         aiConfigOverrides?: { apiKey: string; baseUrl: string; model: string }
       }
@@ -248,6 +272,7 @@ function createWindow(): void {
         chineseDescription: payload.chineseDescription,
         category: payload.category,
         skuNames: payload.skuNames,
+        originalFileNames: payload.originalFileNames,
         mainImagePath: payload.mainImagePath,
         aiConfigOverrides: payload.aiConfigOverrides,
       })
@@ -257,6 +282,30 @@ function createWindow(): void {
           success: false,
           error: { type: result.error!.type, message: result.error!.message },
         }
+      }
+
+      return { success: true, data: result.data }
+    }
+  )
+
+  // v4.5 单 SKU 英文翻译
+  ipcMain.handle(
+    'call-translate-sku',
+    async (
+      _event,
+      payload: {
+        chineseTitle: string
+        category: string
+        skuName: string
+        skuFileName?: string
+        skuImagePath?: string
+        aiConfigOverrides?: { apiKey: string; baseUrl: string; model: string }
+      }
+    ): Promise<{ success: boolean; data?: { nameEn: string }; error?: { type: string; message: string } }> => {
+      const result = await translateSingleSku(payload)
+
+      if (!result.success) {
+        return { success: false, error: { type: result.error!.type, message: result.error!.message } }
       }
 
       return { success: true, data: result.data }
