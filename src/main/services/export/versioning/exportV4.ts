@@ -4,7 +4,7 @@ import path from 'path'
 import type { ProductOutput, ProductInfo } from '@shared/types'
 import type { SkuItem, ShopeeInfo, ProductImages, ProductImage, SkuOutputV45 } from '@shared/types'
 import type { ProductAssets, AssetFile } from '@shared/types'
-import { TOOL_VERSION } from '@shared/constants'
+import { TOOL_VERSION, CATEGORY_TO_SHOPEE } from '@shared/constants'
 
 export interface ExportV45Input {
   productInfo: ProductInfo
@@ -83,11 +83,12 @@ export function buildV45ProductJson(input: ExportV45Input): ProductOutput {
   }
 
   // Shopee platform
+  const resolvedShopeeCategory = shopeeInfo?.category?.length ? shopeeInfo.category : CATEGORY_TO_SHOPEE[productInfo.category || ''] || []
   const shopee = shopeeInfo
     ? {
         title: shopeeInfo.title || '',
         description: shopeeInfo.descriptionText || '',
-        category: [] as string[],
+        category: resolvedShopeeCategory,
         attributes: {
           brand: shopeeInfo.attributes?.brand || 'NoBrand',
           origin: shopeeInfo.attributes?.origin || '中国大陆',
@@ -111,7 +112,7 @@ export function buildV45ProductJson(input: ExportV45Input): ProductOutput {
     : {
         title: '',
         description: '',
-        category: [] as string[],
+        category: CATEGORY_TO_SHOPEE[productInfo.category || ''] || [],
         attributes: { brand: 'NoBrand', origin: '中国大陆', '材质': '', '图案': '', '商品类型': '其他', 'Custom Product': 'No' },
         logistics: { leadTime: 5, minimumOrderQty: 5, jit: false },
         invitation: { code: '' },

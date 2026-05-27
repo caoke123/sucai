@@ -3,6 +3,7 @@ import { useSorterStore } from '../store/useSorterStore'
 import { useFileSystem } from '../hooks/useFileSystem'
 import { validateProduct } from '@shared/validation'
 import type { ValidationContext } from '@shared/validation'
+import { TOOL_VERSION } from '@shared/constants'
 import type { ImageFile, ProductOutput } from '@shared/types'
 
 const LABEL_TO_FOLDER: Record<string, string> = {
@@ -135,7 +136,7 @@ export function PreviewPanel(): JSX.Element {
 
     return {
       productNo: productInfo.productNo,
-      toolVersion: '4.5.0',
+      toolVersion: TOOL_VERSION,
       createdAt: now,
       updatedAt: now,
       internal: {

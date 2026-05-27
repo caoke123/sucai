@@ -132,6 +132,7 @@ const defaultSpu: SpuData = {
 const defaultShopeeInfo: ShopeeInfo = {
   title: '',
   descriptionText: '',
+  category: [],
   attributes: {
     brand: DEFAULT_SHOPEE_VALUES.brand,
     origin: DEFAULT_SHOPEE_VALUES.origin,

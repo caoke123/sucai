@@ -6,6 +6,7 @@ import {
   STYLE_KEYWORD_MAP,
   INVALID_FILENAME_BLACKLIST,
   MEANINGLESS_NAME_REGEX,
+  CATEGORY_TO_SHOPEE,
 } from '@shared/constants'
 import { BasicInfoSection } from './step3/sections/BasicInfoSection'
 import { ShopeeInfoSection } from './step3/sections/ShopeeInfoSection'
@@ -250,6 +251,17 @@ export function ProductForm(): JSX.Element {
     }
   }, [productCode])
 
+  // 内部类目变更 → 自动同步 Shopee 平台类目
+  useEffect(() => {
+    const cat = productInfo.category
+    if (cat && CATEGORY_TO_SHOPEE[cat]) {
+      const st = useSorterStore.getState()
+      if (!st.shopeeInfo.category || st.shopeeInfo.category.length === 0) {
+        st.setShopeeInfo({ category: CATEGORY_TO_SHOPEE[cat] })
+      }
+    }
+  }, [productInfo.category])
+
   // 类目/SKU颜色变更 → 重新计算所有 SKU 编码
   useEffect(() => {
     const st = useSorterStore.getState()
@@ -289,6 +301,7 @@ export function ProductForm(): JSX.Element {
       const sh = data.shopee as Record<string, unknown>
       if (sh.title && typeof sh.title === 'string') setShopeeInfo({ title: sh.title })
       if (sh.descriptionText && typeof sh.descriptionText === 'string') setShopeeInfo({ descriptionText: sh.descriptionText })
+      if (sh.material && typeof sh.material === 'string') setProductInfo({ material: sh.material })
     }
     if (data.skus && Array.isArray(data.skus)) {
       const currentList = getSkuList()
@@ -353,7 +366,7 @@ export function ProductForm(): JSX.Element {
         skuIds,
         existingNames,
         productTitle: st.productInfo.title || undefined,
-        productCategory: st.currentSpu?.categoryCode || undefined,
+        productCategory: st.currentSpu?.spuName || st.productInfo.category || undefined,
         originalFileNames: allOriginalNames,
         folderName: st.productCode ? `[${st.productCode}] ${st.shortTitle}_素材包` : undefined,
         aiConfig,

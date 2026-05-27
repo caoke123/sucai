@@ -1,6 +1,6 @@
 # AI 识图填表 — 完整逻辑文档
 
-> 版本：v4.5.0 | 更新日期：2026-05-27
+> 版本：v4.6.0 | 更新日期：2026-05-27
 > 覆盖范围：AI 智能填表 / SKU 中英文名称生成 / Shopee 平台内容生成 / 单 SKU 翻译 / 批量翻译 / 图片压缩缓存 / 流式返回 / 缓存预热
 
 ---
@@ -173,7 +173,7 @@ fetch(api, { body: { stream: true } })
 | 参数 | 值 |
 |------|-----|
 | 模型 | `doubao-seed-1-6-flash-250828` |
-| max_tokens | 2000 |
+| max_tokens | 3000 |
 | stream | true |
 | API 端点 | `https://ark.cn-beijing.volces.com/api/v3/chat/completions` |
 
@@ -181,56 +181,52 @@ fetch(api, { body: { stream: true } })
 
 ## 八、System Prompt 全文
 
+> v4.6 优化：Prompt 拆分为两层结构 — 任务指令层 + 参考数据层，总量 ~3500 字符（原 4800 字符）。<br/>
+> 模型先处理简洁的任务指令（~1600字符），再按需查阅参考数据区段（材质白名单 + Shopee 关键词），避免指令与数据混杂导致处理延迟。
+
+### 第一层：任务指令（~1600 字符）
+
 ```
-[PRODUCT CONTEXT — PRIMARY SOURCE, READ FIRST]
-素材包文件夹: [{productCode}] {shortTitle}_素材包
-产品中文标题: {productTitle}
-产品类目: {productCategory}
-原始图片文件名:
-  [0] filename1.jpg
-  ...
+[PRODUCT CONTEXT]
+素材包文件夹: {folderName} | 产品中文标题: {productTitle} | 产品类目: {productCategory}
+原始图片文件名: [0] filename1.jpg ...
 
-[YOUR TASK]
-你是一个跨境电商选品与数据录入及本地化专家。
-基于以上产品上下文，结合图片内容作为辅助确认，请一次性完成以下任务：
+你是跨境电商选品专家。基于产品上下文和图片，一次完成以下任务，输出纯 JSON。
 
-1. 确认或优化产品中文标题(title, ≤60字)
-2. 生成短标题(shortTitle, ≤10字)，用于文件夹命名
-3. 从 "包包挂件"、"手机挂件"、"车内配饰"、"毛绒玩具" 中选择最合适的类目(category)
-4. 生成卖点描述(description)
-5. 对标记为"请识别此图"的 SKU 图片生成款式名称（中文 + 英文，同步输出）
-6. 额外任务：同步生成 Shopee 平台优化的英文推广内容
+[TASK 1 - 基础信息]
+title: ≤60字 | shortTitle: ≤10字 | category: 包包挂件/手机挂件/车内配饰/毛绒玩具 | description: 2-3句中文卖点描述
 
-[SHOPEE PLATFORM LOCALIZATION RULES]
-- 标题 (shopee.title): 英文 Title Case，120-160个字符，自然融入至少3个热搜关键词
-- 描述 (shopee.descriptionText): 500-1500字符，纯文本，包含 [IMAGE] 占位符
-- 材质 (shopee.material): 2-4个英文材质词，逗号分隔
+[TASK 2 - 属性识别]
+material: 从下方 [REFERENCE DATA] 材质列表中选1个最匹配的值，禁止自造
+pattern: 1-3个英文单词 Title Case，描述产品外观造型(Heart/Star/Cartoon/Solid Color等)
 
-[SKU 命名规则]
-- 每张图必须生成不同的款式名称，禁止多张图返回相同名称
-- 优先参考原始文件名提取变体特征
-- 对于标注"中文名已确定"的SKU：skuName必须原样使用提供的中文名不要修改
-- 请确保skus数组中每个skuId都对应一条记录，不要遗漏任何SKU
+[TASK 3 - SKU]
+skuName(2-10汉字各SKU不重复) + skuNameEn(2-5词Title Case ≤28字符)
+中文名已确定：skuName照用原值，只生成skuNameEn
 
-[ENGLISH SKU NAME RULES]
-- 每个 SKU 必须同时生成对应的英文款式名称（skuNameEn）
-- 英文名 2-5个单词，Title Case，用于 Shopee 等跨境平台
+[TASK 4 - Shopee]
+shopee.title: 纯英文120-160字符，融入[REFERENCE DATA]关键词≥3个
+shopee.descriptionText: 六段结构[PRODUCT NAME]/[SPECIFICATIONS]/[USE SCENARIOS]/[DESCRIPTION]/[HOW TO USE]/[CARE INSTRUCTIONS]
+shopee.material: 与material字段一致
 
-⚠️ 极其重要：必须返回以下格式的纯 JSON 对象：
-{
-  "title": "...",
-  "shortTitle": "...",
-  "category": "...",
-  "description": "...",
-  "shopee": { "title": "...", "descriptionText": "...", "material": "..." },
-  "skus": [
-    {
-      "skuId": "D:/images/blue.jpg",
-      "skuName": "蓝色香肠嘴挂件",
-      "skuNameEn": "Blue Sausage Mouth Charm"
-    }
-  ]
-}
+[OUTPUT FORMAT]
+{ "title":"...", "shortTitle":"...", "category":"...", "description":"...", "material":"...", "pattern":"...", "shopee":{"title":"...","descriptionText":"...","material":"..."}, "skus":[{"skuId":"...", "skuName":"...", "skuNameEn":"..."}] }
+```
+
+### 第二层：参考数据（~1900 字符，独立 contentPart）
+
+```
+[REFERENCE DATA — 仅供选择参考，勿改动]
+
+材质白名单（必须从此列表选1个最匹配的值）：
+  竹纤维,帆布,羊绒,棉,羊毛,尼龙,涤纶,人造丝,PVC,橡胶,硅胶,丝绒,
+  ABS,粘土,纸,塑料,布面,木材,泡沫,玻璃,皮革,金属,雪纺,牛仔布,毡,
+  皮毛,针织,蕾丝,亚麻,其他,丝绸,合成皮,纺织,毛圈,莱卡,人造棉,Voal,
+  ... (150+ 材质完整列表)
+
+Shopee 热搜关键词（title中选≥3个，选与产品最相关的）：
+  bag charm / bag charms / bag accessories / keychain / keychains /
+  ... (30+ 关键词完整列表)
 ```
 
 ---
@@ -247,6 +243,8 @@ fetch(api, { body: { stream: true } })
 | `"shortTitle"\s*:\s*"([^"]+)"` | 短标题 | 紧随其后 |
 | `"category"\s*:\s*"([^"]+)"` | 类目 | 紧随其后 |
 | `"description"\s*:\s*"([^"]+)"` | 描述 | 紧随其后 |
+| `"material"\s*:\s*"([^"]+)"` | 材质 | 紧随其后 |
+| `"pattern"\s*:\s*"([^"]+)"` | 图案 | 紧随其后 |
 | `"shopee"\s*:\{...\}` | Shopee 标题 | 文本段 |
 | `{ "skuId":"...", "skuName":"...", "skuNameEn":"..." }` | SKU 对象 | 逐条 |
 
@@ -274,6 +272,7 @@ fetch(api, { body: { stream: true } })
 | ✅ 8 | 渲染进程 Canvas 双重压缩 + 阻塞 UI | 2026-05-27 | 压缩统一移到主进程 Sharp |
 | ✅ 9 | 用户等待 AI 全部返回才看到结果 | 2026-05-27 | 流式返回 + StreamJsonParser 实时填写 |
 | ✅ 10 | 每次填表都重新压缩图片 | 2026-05-27 | 缓存预热 + mtime 失效策略 |
+| ✅ 11 | Prompt 膨胀至 4800+ 字符，AI 响应慢 2-3x | 2026-05-27 | v4.6 Prompt 精简至 ~1600 字符，max_tokens 增至 3000 |
 
 ---
 
@@ -284,9 +283,10 @@ fetch(api, { body: { stream: true } })
 | IPC 传输体积 | ~500KB | ~500B |
 | UI 线程阻塞 | Canvas 压缩阻塞 | 无阻塞 |
 | 图片处理耗时（预热后） | - | <10ms |
-| 用户感知到第一个结果 | 5-15秒 | 2-3秒 |
+| 用户感知到第一个结果 | 5-15秒 → 8-30秒(v4.5膨胀) | 2-3秒(v4.6) |
 | 一次填表 API 调用 | 1+1 (Vision+Shopee) | 1 次流式 Vision |
 | Sharp 缓存命中率 | - | 100% (预热后) |
+| System Prompt 大小 | ~1800 字符(v4.0) → 4800 字符(v4.5 膨胀) | ~3500 字符两层分离(v4.6 优化) |
 
 ---
 
@@ -294,6 +294,7 @@ fetch(api, { body: { stream: true } })
 
 | # | 方向 | 预期收益 |
 |---|------|---------|
-| 1 | AI 返回 schema 校验 (jsonschema/zod) | 容错性提升 |
-| 2 | Token 使用日志 | 可观测性 |
-| 3 | 批量 SKU 翻译合并 (N次→1次) | 耗时 -70% |
+| 1 | ~~Prompt 精简~~ ✅ v4.6 已完成 | 响应速度恢复 |
+| 2 | AI 返回 schema 校验 (jsonschema/zod) | 容错性提升 |
+| 3 | Token 使用日志 | 可观测性 |
+| 4 | 批量 SKU 翻译合并 (N次→1次) | 耗时 -70% |

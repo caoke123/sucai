@@ -159,22 +159,35 @@ function createWindow(): void {
           type: 'text',
           text: `[PRODUCT CONTEXT]
 ${payload.folderName ? `素材包文件夹: ${payload.folderName}\n` : ''}${payload.productTitle ? `产品中文标题: ${payload.productTitle}\n` : ''}${payload.productCategory ? `产品类目: ${payload.productCategory}\n` : ''}${payload.originalFileNames && payload.originalFileNames.length > 0 ? `原始图片文件名:\n${payload.originalFileNames.map((f, i) => `  [${i}] ${f}`).join('\n')}\n` : ''}
-[YOUR TASK]
-你是跨境电商选品专家。基于产品上下文和图片，一次性完成以下任务。
-输出纯 JSON，不带 Markdown 代码块，不带注释。
+你是跨境电商选品专家。基于产品上下文和图片，一次完成以下任务，输出纯 JSON（不带Markdown代码块）。
 
 [TASK 1 - 基础信息]
-- title: 中文标题（≤60字，优化已有标题）
-- shortTitle: 中文短标题（≤10字，用于文件夹命名）
-- category: 只能从「包包挂件/手机挂件/车内配饰/毛绒玩具」中选一个
-- description: 中文卖点描述（2-3句，简洁实用）
+title: ≤60字中文标题 | shortTitle: ≤10字 | category: 包包挂件/手机挂件/车内配饰/毛绒玩具 | description: 2-3句中文卖点描述
 
 [TASK 2 - 属性识别]
+material: 从下方 [REFERENCE DATA] 材质列表中选1个最匹配的值，禁止自造
+pattern: 1-3个英文单词 Title Case，描述产品外观造型，非颜色。参考分类：外观形状(Heart/Star/Moon/Crown/Bow/Flower)、卡通IP(Cartoon/Animal/Bear/Cat/Bunny)、色彩(Solid Color/Color Block/Gradient/Plaid/Striped)、食物(Croissant/Cherry/Fruit/Candy)、其他(Geometric/Abstract/Letter/Number)
 
-material（材质）规则：
-- 必须且只能从以下列表中选择1个最匹配的值，不能自造
-- 优先根据图片视觉判断，结合产品标题辅助确认
-- 材质列表：
+[TASK 3 - SKU]
+每个SKU生成: skuName(2-10汉字，颜色/款式特征，各SKU不重复) + skuNameEn(2-5词Title Case，≤28字符)
+中文名已确定的SKU：skuName照用原值不修改，只生成skuNameEn。skus数组必须包含每个SKU，不遗漏。
+
+[TASK 4 - Shopee]
+shopee.title: 纯英文120-160字符(含空格)，融入下方 [REFERENCE DATA] 关键词列表中≥3个词组，自然融入不堆砌
+shopee.descriptionText: 纯英文纯文本，六段结构[PRODUCT NAME]/[SPECIFICATIONS]/[USE SCENARIOS]/[DESCRIPTION]/[HOW TO USE]/[CARE INSTRUCTIONS]，每段标题全大写方括号，段间空一行，实事求是
+shopee.material: 与material字段一致
+
+{ "title":"...", "shortTitle":"...", "category":"...", "description":"...", "material":"...", "pattern":"...", "shopee":{"title":"...","descriptionText":"...","material":"..."}, "skus":[{"skuId":"路径/文件名.jpg","skuName":"茱萸粉毛球款","skuNameEn":"Rose Pink Charm"}] }
+
+输出前确认: shopee.title 120-160字符且含≥3个关键词; skuNameEn ≤28字符; skus无遗漏; material必须在材质列表中; 纯JSON无代码块`,
+        })
+
+        // 追加参考数据区段（材质列表 + Shopee 关键词），与任务指令分离
+        contentParts.push({
+          type: 'text',
+          text: `[REFERENCE DATA — 仅供选择参考，勿改动]
+
+材质白名单（必须从此列表选1个最匹配的值）：
   竹纤维,帆布,羊绒,棉,羊毛,尼龙,涤纶,人造丝,PVC,橡胶,硅胶,丝绒,
   ABS,粘土,纸,塑料,布面,木材,泡沫,玻璃,皮革,金属,雪纺,牛仔布,毡,
   皮毛,针织,蕾丝,亚麻,其他,丝绸,合成皮,纺织,毛圈,莱卡,人造棉,Voal,
@@ -192,37 +205,7 @@ material（材质）规则：
   Stretch Fabric,Organza,Plush,Genuine Leather,Microfiber Leather,
   Vegan Leather,Zinc Alloy,Enamel,Rhinestone,Imitation Pearl,Beads,毛绒
 
-pattern（图案）规则：
-- 输出英文，1-3个单词，Title Case
-- 根据图片视觉特征判断，参考以下分类：
-  外观形状类：Heart / Star / Moon / Crown / Bow / Flower
-  卡通IP类：Cartoon / Animal / Bear / Cat / Bunny / Frog
-  运动器材类：Baseball / Tennis / Badminton / Basketball / Football
-  色彩构成类：Solid Color / Color Block / Gradient / Plaid / Striped
-  食物类：Croissant / Cherry / Fruit / Candy
-  其他：Geometric / Abstract / Letter / Number
-- 若产品有多个SKU颜色，图案指造型/外观，不指颜色
-
-[TASK 3 - SKU名称]
-对每个SKU图片：
-- skuName: 中文款式名（2-10汉字，体现颜色/款式/特征，每个SKU不同）
-- skuNameEn: 英文款式名（2-5词，Title Case，≤28个字符）
-  超过28字符时必须缩短，优先保留最关键的特征词
-  示例：
-  ✓ "Blue Sausage Mouth Charm"（25字符，合格）
-  ✗ "Colorful Rainbow Striped Braided Rope Charm"（44字符，超限）
-  → 改为 "Rainbow Striped Rope Charm"（26字符，合格）
-- 中文名已确定的SKU：skuName原样返回，只生成skuNameEn
-- 请确保skus数组包含每一个SKU，不遗漏
-
-[TASK 4 - Shopee平台内容]
-
-shopee.title 规则：
-- 纯英文
-- 总字符数严格控制在 120-160 之间（含空格）
-- 必须包含关键词列表中至少3个词组，不能少于3个
-- 关键词自然融入句子，不堆砌、不重复
-- 关键词列表（至少选3个，选与产品最相关的）：
+Shopee 热搜关键词（title中选≥3个，选与产品最相关的）：
   bag charm / bag charms / bag accessories / keychain / keychains /
   keychain cute / cute keychain / keychain for bag / bag keychain /
   keychain accessories / keychain y2k / keychain cute for bag /
@@ -232,82 +215,7 @@ shopee.title 规则：
   croissant keychain / croissant bag charm / cat keychain / bunny keychain /
   turtle keychain / snoopy keychain / snoopy accessories / snoopy /
   bag accessories keychains and pins / accessories for bag /
-  palawit sa bag / keychain for bag aesthetic
-
-生成步骤（按顺序执行）：
-第一步：从关键词列表中选出3个与产品最相关的词组
-第二步：将这3个关键词自然融入标题句子中
-第三步：统计字符数，如果少于120则补充产品描述词汇
-第四步：如果超过160则精简非关键词部分
-第五步：确认关键词数量 ≥ 3，字符数在 120-160 之间
-
-示例（仅作格式参考，不要照抄）：
-「Cute Cartoon Sausage Mouth Bag Charm, Colorful Tassel
- Keychain for Bag, Funny Bag Accessories for Bags & Keys
- Y2K Style Keychain Cute Pendant」
-→ 包含：bag charm / keychain for bag / bag accessories / keychain cute
-→ 字符数：约155
-
-shopee.descriptionText 规则：
-- 纯英文，格式化纯文本，不使用 Markdown（不用#*-等符号）
-- 按以下六段固定结构输出，每段标题全大写加方括号：
-
-[PRODUCT NAME]
-（产品英文名，1行）
-
-[SPECIFICATIONS]
-（材质/尺寸/重量/颜色数量等关键规格，3-5行）
-
-[USE SCENARIOS]
-（适用场景，2-3句，平实描述）
-
-[DESCRIPTION]
-（产品特点，3-4句，不夸张，实事求是）
-
-[HOW TO USE]
-（使用方法，2-3句，简单明了）
-
-[CARE INSTRUCTIONS]
-（保养方式，2-3句，拿不准写通用保养方法）
-
-- 段与段之间空一行
-- 语言平实，避免过度营销用语
-
-shopee.material: 与 material 字段保持一致（同一个值）
-
-[OUTPUT FORMAT]
-输出严格符合以下 JSON 结构，不添加任何其他字段：
-
-{
-  "title": "...",
-  "shortTitle": "...",
-  "category": "...",
-  "description": "...",
-  "material": "...",
-  "pattern": "...",
-  "shopee": {
-    "title": "...",
-    "descriptionText": "...",
-    "material": "..."
-  },
-  "skus": [
-    {
-      "skuId": "完整路径/文件名.jpg",
-      "skuName": "茱萸粉毛球款",
-      "skuNameEn": "Rose Pink Pom Pom Charm"
-    }
-  ]
-}
-
-⚠️ 最终检查清单（输出前逐项确认）：
-1. material 的值必须来自材质列表，不能自造
-2. shopee.title 字符数在 120-160 之间，
-   不足120必须补充描述词汇，超过160必须精简
-3. shopee.title 包含至少3个关键词（不能少于3个），
-   生成后逐个核对关键词是否真实出现在标题中
-4. skus 数组包含所有 SKU，无遗漏
-5. 输出纯 JSON，无 Markdown 代码块
-6. 每个 skuNameEn 字符数 ≤ 28，超出必须精简`,
+   palawit sa bag / keychain for bag aesthetic`,
         })
 
         // SKU 图：每张图前附加唯一 ID 文本标签
@@ -348,7 +256,7 @@ shopee.material: 与 material 字段保持一致（同一个值）
           body: JSON.stringify({
             model: config.model,
             messages: [{ role: 'user', content: contentParts }],
-            max_tokens: 2000,
+            max_tokens: 3000,
             stream: true,
           }),
         })

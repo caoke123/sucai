@@ -38,6 +38,14 @@ export const CATEGORY_CODE_MAP: Record<string, string> = {
   '毛绒玩具': 'TO',
 }
 
+// ==================== 内部类目 → Shopee 平台类目映射 ====================
+export const CATEGORY_TO_SHOPEE: Record<string, string[]> = {
+  '包包挂件': ['女包', '包包配件', '吊饰'],
+  '手机挂件': ['手机配件', '手机挂件'],
+  '车内配饰': ['汽车饰品', '汽车挂件'],
+  '毛绒玩具': ['毛绒玩具', '玩具配件'],
+}
+
 // ==================== 风格/颜色系编码表 ====================
 export const STYLE_CODE_MAP: Record<string, string> = {
   '白色系': 'WT',

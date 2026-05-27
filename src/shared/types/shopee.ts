@@ -4,6 +4,7 @@
 export interface ShopeeInfo {
   title: string
   descriptionText: string
+  category: string[]
   attributes: ShopeeAttributes
   leadTime: number
   minimumOrderQty: number

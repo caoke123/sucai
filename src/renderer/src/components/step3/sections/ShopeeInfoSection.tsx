@@ -58,6 +58,23 @@ export function ShopeeInfoSection({
           </div>
         </div>
 
+        {/* Shopee 类目 */}
+        <div className="col-span-2">
+          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1">
+            Shopee 类目
+            <span className="ml-1 text-xs text-[var(--color-text-tertiary)]">(逗号分隔，2-3个)</span>
+          </label>
+          <input
+            type="text"
+            value={shopeeInfo.category.join(', ')}
+            onChange={(e) => onSetShopeeInfo({ category: e.target.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean) })}
+            placeholder="女包, 包包配件, 吊饰"
+            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
+                       focus:outline-none focus:border-[var(--color-primary)]
+                       text-[var(--color-text-primary)]"
+          />
+        </div>
+
         {/* 英文描述 */}
         <div className="col-span-2">
           <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1">
