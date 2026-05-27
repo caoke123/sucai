@@ -47,7 +47,7 @@ export function registerScanFolderHandler(): void {
               }
               return imageFile
             } catch {
-              console.warn(`跳过无法处理的文件: ${fileName}`)
+              console.warn(`Skipping unprocessable file: ${fileName}`)
               return null
             }
           })

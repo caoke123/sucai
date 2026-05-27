@@ -23,7 +23,7 @@ class ImageCompressionCache {
   static get(key: string): CacheEntry | null {
     const hit = this.cache.get(key)
     if (hit) {
-      console.log(`[Sharp Cache] 命中缓存，0ms 返回: ${key}`)
+      console.log(`[Sharp Cache] HIT (0ms): ${key}`)
       return hit
     }
     return null
@@ -35,13 +35,13 @@ class ImageCompressionCache {
       if (firstKey) this.cache.delete(firstKey)
     }
     this.cache.set(key, entry)
-    console.log(`[Sharp Cache] 已缓存: ${key} (总数: ${this.cache.size}, ${(entry.fileSize / 1024).toFixed(1)}KB)`)
+    console.log(`[Sharp Cache] CACHED: ${key} (total: ${this.cache.size}, ${(entry.fileSize / 1024).toFixed(1)}KB)`)
   }
 
   static clear(): void {
     const size = this.cache.size
     this.cache.clear()
-    console.log(`[Sharp Cache] 已清空，释放 ${size} 个缓存项`)
+    console.log(`[Sharp Cache] CLEARED, released ${size} entries`)
   }
 
   static get size(): number {
@@ -103,7 +103,7 @@ export async function prepareImageBase64(
     ImageCompressionCache.set(cacheKey, { base64, fileSize: fileStat.size })
     return base64
   } catch (error) {
-    console.error(`[Sharp Cache] 图片处理失败: ${imagePath}`, error)
+    console.error(`[Sharp Cache] Image processing failed: ${imagePath}`, error)
     return ''
   }
 }

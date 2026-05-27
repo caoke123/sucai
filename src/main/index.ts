@@ -1,10 +1,10 @@
 // ==================== 全局异常容错 ====================
 process.on('uncaughtException', (error) => {
-  console.error('【未捕获的主进程异常】:', error)
+  console.error('[Main] Uncaught exception:', error)
 })
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('【未处理的 Promise 拒绝】:', promise, '原因:', reason)
+  console.error('[Main] Unhandled rejection:', promise, 'reason:', reason)
 })
 
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
@@ -27,6 +27,8 @@ import {
 } from './services/ai'
 import type { AiProviderConfig } from './services/ai/provider/doubaoProvider'
 import { clearImageCompressionCache, prepareImageBase64 } from './services/ai/utils/compressImage'
+import { registerCompressImagesHandler, cleanupCompressTemp } from './ipc/compressImages'
+import { safeJsonParse } from '@shared/utils/safeJsonParse'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -53,6 +55,9 @@ function createWindow(): void {
   registerDbHandlers()
   registerR2ConfigHandlers()
 
+  // 图片压缩（步骤2.5）
+  registerCompressImagesHandler()
+
   // R2 上传队列单例
   const uploadQueueManager = new UploadQueueManager()
   uploadQueueManager.setWindow(mainWindow)
@@ -69,7 +74,7 @@ function createWindow(): void {
       clearImageCompressionCache()
       return { success: true }
     } catch (err) {
-      console.error('[IPC] 清理图片缓存失败:', err)
+      console.error('[IPC] Failed to clear image cache:', err)
       return { success: false, error: String(err) }
     }
   })
@@ -88,7 +93,7 @@ function createWindow(): void {
         )
       )
     }
-    console.log(`[缓存预热] 完成 ${preheated}/${imagePaths.length} 张`)
+    console.log(`[Preheat] Done ${preheated}/${imagePaths.length} images`)
     return { preheated }
   })
 
@@ -143,8 +148,8 @@ function createWindow(): void {
           )),
         ])
         console.log(
-          `[图片处理] 共 ${payload.mainImagePaths.length + payload.skuImagePaths.length} 张，` +
-          `耗时 ${Date.now() - t}ms，命中 ${stats.hitCount} 张，压缩 ${stats.missCount} 张`
+          `[Image Process] ${payload.mainImagePaths.length + payload.skuImagePaths.length} total, ` +
+          `${Date.now() - t}ms, ${stats.hitCount} hit, ${stats.missCount} miss`
         )
 
         const contentParts: Array<Record<string, unknown>> = []
@@ -303,7 +308,7 @@ Shopee 热搜关键词（title中选≥3个，选与产品最相关的）：
               }
             }
           } catch (streamErr) {
-            console.error('[AI Stream] 流式读取异常:', streamErr)
+            console.error('[AI Stream] Read error:', streamErr)
             _event.sender.send('ai-vision-stream', { error: (streamErr as Error).message, done: true })
             return
           }
@@ -311,10 +316,10 @@ Shopee 热搜关键词（title中选≥3个，选与产品最相关的）：
           // 流结束：发送完成信号 + 完整 JSON 供渲染进程兜底解析
           const jsonStr = fullContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
           try {
-            const parsed = JSON.parse(jsonStr)
+            const parsed = safeJsonParse(jsonStr)
             _event.sender.send('ai-vision-stream', { done: true, data: parsed })
           } catch (parseError) {
-            console.error('AI 返回的原始内容(JSON解析失败):', jsonStr.substring(0, 500))
+            console.error('[AI] JSON parse failed, raw:', jsonStr.substring(0, 500))
             _event.sender.send('ai-vision-stream', { error: `AI 返回数据格式异常: ${(parseError as Error).message}`, done: true })
           }
         })()
@@ -500,4 +505,9 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+// 应用退出前清理压缩临时目录
+app.on('before-quit', () => {
+  cleanupCompressTemp()
 })

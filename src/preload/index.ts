@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState } from '@shared/types'
+import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState, CompressResult } from '@shared/types'
 
 interface AiConfig {
   apiKey: string
@@ -153,6 +153,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   offAiVisionStream: (): void => {
     ipcRenderer.removeAllListeners('ai-vision-stream')
+  },
+
+  // 图片压缩（步骤2.5）
+  compressImages: (images: Array<{ id: string; srcPath: string }>): Promise<CompressResult[]> =>
+    ipcRenderer.invoke('compress-images', { images, sessionId: `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` }),
+  compressImagesAnalyze: (images: Array<{ id: string; srcPath: string }>): Promise<Array<{ id: string; srcPath: string; originalSize: number; width: number; height: number; needCompress: boolean }>> =>
+    ipcRenderer.invoke('compress-images-analyze', { images }),
+  onCompressProgress: (callback: (data: { id: string; result: CompressResult }) => void): void => {
+    ipcRenderer.on('compress-progress', (_event, data) => callback(data))
+  },
+  offCompressProgress: (callback: (data: { id: string; result: CompressResult }) => void): void => {
+    ipcRenderer.removeListener('compress-progress', callback)
   },
 })
 

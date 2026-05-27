@@ -42,7 +42,7 @@ export function ImageGrid(): JSX.Element {
       return
     }
     setStepError(null)
-    setStep('info')
+    setStep('compress')
   }
 
   // 主图计数颜色和文案

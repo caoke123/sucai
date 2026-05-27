@@ -7,7 +7,7 @@ import { buildProductJsonData, writeProductJson } from '../services/export/build
 export function registerOrganizeFilesHandler(): void {
   ipcMain.handle('organize-files', async (_event, payload: OrganizeRequest): Promise<OrganizeResult> => {
     try {
-      const { outputFolderPath, images, productInfo, shortTitle, skuList, outerPackaging, shopeeInfo } = payload
+      const { outputFolderPath, images, productInfo, shortTitle, skuList, outerPackaging, shopeeInfo, compressResults } = payload
 
       if (!outputFolderPath) {
         return { success: false, error: '输出目录路径不能为空' }
@@ -20,7 +20,7 @@ export function registerOrganizeFilesHandler(): void {
         productInfo.title
       )
 
-      const renamedFiles = renameAndCopyImages(packagePath, images)
+      const renamedFiles = renameAndCopyImages(packagePath, images, compressResults)
 
       const productData = buildProductJsonData({
         productInfo,

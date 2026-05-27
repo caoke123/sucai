@@ -1,4 +1,4 @@
-import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState } from '@shared/types'
+import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState, CompressResult } from '@shared/types'
 
 interface AiConfig {
   apiKey: string
@@ -98,6 +98,10 @@ declare global {
       preheatImageCache: (paths: string[]) => Promise<{ preheated: number }>
       onAiVisionStream: (callback: (data: { delta?: string; done?: boolean; error?: string; data?: Record<string, unknown> }) => void) => void
       offAiVisionStream: () => void
+      compressImages: (images: Array<{ id: string; srcPath: string }>) => Promise<CompressResult[]>
+      compressImagesAnalyze: (images: Array<{ id: string; srcPath: string }>) => Promise<Array<{ id: string; srcPath: string; originalSize: number; width: number; height: number; needCompress: boolean }>>
+      onCompressProgress: (callback: (data: { id: string; result: CompressResult }) => void) => void
+      offCompressProgress: (callback: (data: { id: string; result: CompressResult }) => void) => void
     }
     api: {
       db: {

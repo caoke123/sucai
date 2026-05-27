@@ -9,6 +9,7 @@ import type { ShopeePromptInput } from './prompt/shopeePrompt'
 import { parseShopeeResponse } from './parser/parseShopeeResponse'
 import type { ShopeeAiResult } from './parser/parseShopeeResponse'
 import { compressImageToBase64 } from './utils/compressImage'
+import { safeJsonParse } from '@shared/utils/safeJsonParse'
 import { normalizeAiError } from './utils/normalizeAiError'
 import type { NormalizedAiError } from './utils/normalizeAiError'
 import { validateAiConfig } from '../config/validateConfig'
@@ -45,7 +46,7 @@ async function saveAiConfig(config: AiProviderConfig): Promise<void> {
     const { writeFile } = await import('fs/promises')
     await writeFile(aiConfigPath, JSON.stringify(config, null, 2), 'utf-8')
   } catch (err) {
-    console.error('[AI] 保存配置失败:', err)
+    console.error('[AI] Failed to save config:', err)
   }
 }
 
@@ -99,7 +100,7 @@ export async function generateShopeeEnglish(
       try {
         mainImageBase64 = await compressImageToBase64(input.mainImagePath)
       } catch (imgErr) {
-        console.warn('[AI] 主图压缩失败，继续文本生成:', imgErr)
+        console.warn('[AI] Main image compress failed, continue text-only:', imgErr)
       }
     }
 
@@ -174,15 +175,15 @@ export async function translateSingleSku(
     const contentParts: unknown[] = []
 
     if (mustUseVision) {
-      console.log(`[AI Translate] 无法降级，使用 Vision 识图翻译: "${input.skuName}" (${input.skuFileName || '无文件名'})`)
+      console.log(`[AI Translate] Cannot degrade, using Vision: "${input.skuName}" (${input.skuFileName || 'no filename'})`)
       try {
         const base64 = await compressImageToBase64(input.skuImagePath!)
         contentParts.push({ type: 'image_url', image_url: { url: base64 } })
       } catch (compressError) {
-        console.warn('[AI Translate] 图片压缩失败，降级为纯文本翻译:', compressError)
+        console.warn('[AI Translate] Image compress failed, fallback to text-only:', compressError)
       }
     } else {
-      console.log(`[AI Translate] 命中降级条件，纯文本翻译: "${input.skuName}"`)
+      console.log(`[AI Translate] Degrade condition met, text-only: "${input.skuName}"`)
     }
 
     const fileNameHint = input.skuFileName
@@ -301,7 +302,7 @@ The results array must have the same count and same id values as the input SKU l
       ? cleaned.slice(firstBrace, lastBrace + 1)
       : cleaned
 
-    const parsed = JSON.parse(jsonStr) as { results?: Array<{ id: string; nameEn: string }> }
+    const parsed = safeJsonParse<{ results?: Array<{ id: string; nameEn: string }> }>(jsonStr)
     const results = (parsed.results || []).map((r) => ({
       id: r.id || '',
       nameEn: (r.nameEn || '').replace(/['"]/g, '').trim(),

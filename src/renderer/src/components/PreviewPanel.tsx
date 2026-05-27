@@ -197,6 +197,7 @@ export function PreviewPanel(): JSX.Element {
         shortTitle,
         skuList: skuList || [],
         shopeeInfo,
+        compressResults: useSorterStore.getState().compress.results,
         outerPackaging: {
           length: currentSpu?.outerPackLength ?? 0,
           width: currentSpu?.outerPackWidth ?? 0,

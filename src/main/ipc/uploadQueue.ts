@@ -114,7 +114,7 @@ export class UploadQueueManager {
     const files = getAllFiles(task.localPackagePath, task.localPackagePath)
     const emptyDirs = getEmptyDirs(task.localPackagePath, task.localPackagePath)
     const totalFiles = files.length + emptyDirs.length
-    console.log('[UploadQueue] 扫描完成:', files.length, '文件 +', emptyDirs.length, '空目录 =', totalFiles)
+    console.log('[UploadQueue] Scan done:', files.length, 'files +', emptyDirs.length, 'empty dirs =', totalFiles)
     if (totalFiles === 0) {
       throw new Error('素材包目录为空，没有可上传的文件')
     }
@@ -193,7 +193,7 @@ export class UploadQueueManager {
       const productJsonFile = allFiles.find((f) => f === 'product.json' || f.endsWith('/product.json'))
       const otherFiles = allFiles.filter((f) => f !== productJsonFile)
 
-      console.log(`[R2 Upload] 扫描完成: ${allFiles.length} 个文件, ${emptyDirs.length} 个空目录, 文件夹: ${task.folderName}`)
+      console.log(`[R2 Upload] Scan done: ${allFiles.length} files, ${emptyDirs.length} empty dirs, folder: ${task.folderName}`)
 
       let originalJson: Record<string, unknown> = {}
       if (productJsonFile) {
@@ -245,7 +245,7 @@ export class UploadQueueManager {
           await uploadFile(relativePath)
         } catch (err) {
           failedFiles.push(relativePath)
-          console.error(`[R2 Upload] 失败: ${relativePath} — ${(err as Error).message}`)
+          console.error(`[R2 Upload] Failed: ${relativePath} — ${(err as Error).message}`)
         }
       }
 
@@ -262,7 +262,7 @@ export class UploadQueueManager {
             })
           )
         } catch (err) {
-          console.warn(`[R2 Upload] 空目录上传失败: ${relativePath}`)
+          console.warn(`[R2 Upload] Empty dir upload failed: ${relativePath}`)
         }
 
         task.uploadedFiles++
@@ -287,7 +287,7 @@ export class UploadQueueManager {
       }
 
       if (failedFiles.length > 0) {
-        console.error(`[R2 Upload] ${failedFiles.length} 个文件上传失败: ${failedFiles.join(', ')}`)
+        console.error(`[R2 Upload] ${failedFiles.length} files failed: ${failedFiles.join(', ')}`)
       }
 
       // 输出上传统计
@@ -406,9 +406,9 @@ export class UploadQueueManager {
             JSON.stringify(finalJson, null, 2),
             'utf-8'
           )
-          console.log('[R2 WriteBack] 本地 product.json 已更新 (含 r2Urls)')
+          console.log('[R2 WriteBack] Local product.json updated (with r2Urls)')
         } catch (writeErr) {
-          console.error('[R2 Upload] 写回本地 product.json 失败:', (writeErr as Error).message)
+          console.error('[R2 Upload] Failed to write back product.json:', (writeErr as Error).message)
         }
       }
 
@@ -419,12 +419,12 @@ export class UploadQueueManager {
       task.publicBaseUrl = `${baseUrl}/products/${encodedFolder}/`
       this.pushStateToRenderer()
     } catch (error) {
-      const step = task.uploadedFiles === 0 ? '扫描文件' : '上传过程'
+      const step = task.uploadedFiles === 0 ? 'File scan' : 'Upload'
       const errMsg = `${step}失败: ${(error as Error).message}`
 
       task.retryCount++
       if (task.retryCount < UPLOAD_MAX_RETRIES) {
-        console.warn(`[R2 Upload] 重试 ${task.retryCount}/${UPLOAD_MAX_RETRIES}: ${errMsg}`)
+        console.warn(`[R2 Upload] Retry ${task.retryCount}/${UPLOAD_MAX_RETRIES}: ${errMsg}`)
         await new Promise((resolve) => setTimeout(resolve, UPLOAD_RETRY_DELAY_MS))
         task.status = 'pending'
         task.errorMessage = undefined
@@ -433,7 +433,7 @@ export class UploadQueueManager {
       } else {
         task.status = 'failed'
         task.errorMessage = errMsg
-        console.error(`[R2 Upload] 上传失败 (已重试${UPLOAD_MAX_RETRIES}次): ${errMsg}`)
+        console.error(`[R2 Upload] Failed after ${UPLOAD_MAX_RETRIES} retries: ${errMsg}`)
       }
       this.pushStateToRenderer()
     }

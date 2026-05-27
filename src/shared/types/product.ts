@@ -66,6 +66,7 @@ export interface OrganizeRequest {
     presetName: string
   }
   shopeeInfo?: import('./shopee').ShopeeInfo
+  compressResults?: Record<string, import('./compress').CompressResult>
 }
 
 export interface OrganizeResult {

@@ -84,7 +84,7 @@ export async function callDoubaoApi(
       }
 
       if (attempt < DEFAULT_MAX_RETRIES) {
-        console.warn(`[Doubao] 第 ${attempt + 1} 次调用失败，${RETRY_DELAY_MS}ms 后重试:`, lastError.message)
+        console.warn(`[Doubao] Attempt ${attempt + 1} failed, retry in ${RETRY_DELAY_MS}ms:`, lastError.message)
         await delay(RETRY_DELAY_MS)
       }
     }

@@ -53,8 +53,8 @@ export function parseShopeeResponse(
     }
   } catch (parseErr) {
     const snippet = rawContent.substring(0, 200)
-    console.error('[ShopeeParser] JSON 解析失败:', (parseErr as Error).message)
-    console.error('[ShopeeParser] 原始内容片段:', snippet)
+    console.error('[ShopeeParser] JSON parse error:', (parseErr as Error).message)
+    console.error('[ShopeeParser] Raw content snippet:', snippet)
 
     return {
       success: false,

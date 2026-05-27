@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
-import type { ImageFile, ImageLabel, ProductInfo, SkuSpecRow, SkuItem, SpuData, PackagingPreset, ShopeeInfo, ShopeeAttributes } from '@shared/types'
+import type { ImageFile, ImageLabel, ProductInfo, SkuSpecRow, SkuItem, SpuData, PackagingPreset, ShopeeInfo, ShopeeAttributes, CompressState, CompressResult } from '@shared/types'
 import { DEFAULT_AI_CONFIG, DEFAULT_SHOPEE_VALUES } from '@shared/constants'
 
-type Step = 'folder' | 'labeling' | 'info' | 'preview' | 'done'
+type Step = 'folder' | 'labeling' | 'compress' | 'info' | 'preview' | 'done'
 
 interface SorterStore {
   // 步骤控制
@@ -101,6 +101,11 @@ interface SorterStore {
 
   // 仅清理当前产品数据（保留 aiConfig 和 productCounter）
   resetCurrentProduct: () => void
+
+  // 图片压缩（步骤2.5）
+  compress: CompressState
+  setCompressResults: (results: CompressResult[]) => void
+  resetCompress: () => void
 }
 
 const defaultProductInfo: ProductInfo = {
@@ -141,6 +146,12 @@ const defaultShopeeInfo: ShopeeInfo = {
   leadTime: DEFAULT_SHOPEE_VALUES.leadTime,
   minimumOrderQty: DEFAULT_SHOPEE_VALUES.minimumOrderQty,
   jitInvitationCode: DEFAULT_SHOPEE_VALUES.jitInvitationCode,
+}
+
+const defaultCompress: CompressState = {
+  results: {},
+  status: 'idle',
+  progress: 0,
 }
 
 export const useSorterStore = create<SorterStore>()(
@@ -457,6 +468,23 @@ export const useSorterStore = create<SorterStore>()(
           state.selectedPresetId = id
         }),
 
+      // 图片压缩
+      compress: { ...defaultCompress },
+      setCompressResults: (results) =>
+        set((state) => {
+          const resultMap: Record<string, CompressResult> = {}
+          for (const r of results) {
+            resultMap[r.id] = r
+          }
+          state.compress.results = resultMap
+          state.compress.status = 'done'
+          state.compress.progress = 1
+        }),
+      resetCompress: () =>
+        set((state) => {
+          state.compress = { ...defaultCompress }
+        }),
+
       reset: () =>
         set((state) => {
           console.log('[排查] store reset 被调用')
@@ -473,6 +501,7 @@ export const useSorterStore = create<SorterStore>()(
           state.outputPath = ''
           state.shortTitle = ''
           state.shopeeInfo = { ...defaultShopeeInfo }
+          state.compress = { ...defaultCompress }
         }),
 
       // 仅清理当前产品数据（保留 counter 和 outputFolderPath）
@@ -492,6 +521,7 @@ export const useSorterStore = create<SorterStore>()(
           state.shortTitle = ''
           state.productCode = ''
           state.shopeeInfo = { ...defaultShopeeInfo }
+          state.compress = { ...defaultCompress }
         }),
     })),
     {
