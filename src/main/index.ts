@@ -26,6 +26,7 @@ import {
   translateSkuBatch,
 } from './services/ai'
 import type { AiProviderConfig } from './services/ai/provider/doubaoProvider'
+import { clearImageCompressionCache } from './services/ai/utils/compressImage'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -60,6 +61,17 @@ function createWindow(): void {
   // 打开本地文件夹
   ipcMain.handle('open-path', async (_event, dirPath: string): Promise<string> => {
     return shell.openPath(dirPath)
+  })
+
+  // 清理图片压缩缓存
+  ipcMain.handle('clear-image-cache', async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      clearImageCompressionCache()
+      return { success: true }
+    } catch (err) {
+      console.error('[IPC] 清理图片缓存失败:', err)
+      return { success: false, error: String(err) }
+    }
   })
 
   // 读取文件 Base64
@@ -98,7 +110,7 @@ function createWindow(): void {
       try {
         const config = payload.aiConfig?.apiKey ? payload.aiConfig : await getConfig()
         if (!config.apiKey) {
-          return { success: false, error: 'AI 配置中未设置 API Key，请在系统配置中填入密钥' }
+          return { success: false, error: 'AI 配置中未设置 API Key' }
         }
 
         const contentParts: Array<Record<string, unknown>> = []
@@ -114,37 +126,86 @@ function createWindow(): void {
           text: `[PRODUCT CONTEXT — PRIMARY SOURCE, READ FIRST]
 ${payload.folderName ? `素材包文件夹: ${payload.folderName}\n` : ''}${payload.productTitle ? `产品中文标题: ${payload.productTitle}\n` : ''}${payload.productCategory ? `产品类目: ${payload.productCategory}\n` : ''}${payload.originalFileNames && payload.originalFileNames.length > 0 ? `原始图片文件名:\n${payload.originalFileNames.map((f, i) => `  [${i}] ${f}`).join('\n')}\n` : ''}
 [YOUR TASK]
-你是一个跨境电商选品与数据录入专家。
+你是一个跨境电商选品与数据录入及本地化专家。
 
-基于以上产品上下文（文件夹名/标题/原始文件名），结合图片内容作为辅助确认：
+基于以上产品上下文（文件夹名/标题/原始文件名），结合图片内容作为辅助确认，请一次性完成以下任务：
 
 1. 确认或优化产品中文标题(title, ≤60字)
 2. 生成短标题(shortTitle, ≤10字)，用于文件夹命名
-3. 从 "包包挂件"、"手机挂件"、"车内配饰"、"毛绒玩具" 中选择最合适的类目
+3. 从 "包包挂件"、"手机挂件"、"车内配饰"、"毛绒玩具" 中选择最合适的类目(category)
 4. 生成卖点描述(description)
-5. 对标记为"请识别此图"的 SKU 图片生成款式名称
+5. 对标记为"请识别此图"的 SKU 图片生成款式名称（中文 + 英文，同步输出）
+6. 额外任务：同步生成专门针对 Shopee 平台优化的英文推广内容（包括英文标题、英文描述、材质属性）
+
+[SHOPEE PLATFORM LOCALIZATION RULES]
+- 标题 (shopee.title): 英文 Title Case，34-180个字符，自然融入3个热搜关键词
+- 描述 (shopee.descriptionText): 500-1500字符，纯文本，包含 [IMAGE] 占位符。第一段核心卖点，第二段特性说明，第三段使用场景
+- 材质 (shopee.material): 2-4个英文材质词，逗号分隔，如 "Plush, PP Cotton"
 
 [SKU 命名规则]
-- 不要仅输出颜色词！结合标题/文件名确定这是什么产品
-- 款式名称应反映具体变体特征
+- 每张图必须生成不同的款式名称，禁止多张图返回相同名称
+- 优先参考该图对应的原始文件名（originalFileNames 中对应索引），从文件名提取变体特征
+- 变体特征包括但不限于：颜色、材质、数量、尺寸、配件、款式、图案等
+- 文件名中有明确特征词（如"绿色"、"3件套"、"带挂钩"）必须保留在款式名称中
+- 文件名无明显特征时，仔细观察图片，描述与其他图片最明显的差异点
 - 2-10个中文字符
-- 如果标记为"已有名称，无需识别"，请跳过，不要在 skus 数组中返回它
+- 对于标注"中文名已确定"的SKU：skuName必须原样使用提供的中文名不要修改，skuNameEn根据图片生成准确英文名，该SKU必须出现在返回的skus数组中
+- 请确保skus数组中每个skuId都对应一条记录，不要遗漏任何SKU
 
-⚠️ 仅输出纯 JSON，格式：{"title":"...","shortTitle":"...","category":"...","description":"...","skus":[{"skuId":"...","skuName":"..."}]}`,
+[ENGLISH SKU NAME RULES]
+- 每个 SKU 必须同时生成对应的英文款式名称（skuNameEn）
+- 英文名 2-5个单词，Title Case，用于 Shopee 等跨境平台
+- 必须是该 SKU 英文变体名，不是裸颜色词，不是纯产品名
+- 参考中文名和产品标题，组合变体特征词 + 产品类型词
+- 示例：中文"蓝色香肠嘴挂件" → 英文"Blue Sausage Mouth Charm"
+
+⚠️ 极其重要：必须返回以下格式的纯 JSON 对象，不要包含 markdown 标记：
+{
+  "title": "...",
+  "shortTitle": "...",
+  "category": "...",
+  "description": "...",
+  "shopee": {
+    "title": "...",
+    "descriptionText": "...",
+    "material": "..."
+  },
+  "skus": [
+    {
+      "skuId": "D:/images/blue.jpg",
+      "skuName": "蓝色香肠嘴挂件",
+      "skuNameEn": "Blue Sausage Mouth Charm"
+    }
+  ]
+}`,
         })
 
-        // SKU 图：每张图前附加唯一 ID 文本标签；已有名称的不传图片
+        // SKU 图：每张图前附加唯一 ID 文本标签
         const existing = payload.existingNames || []
         for (let i = 0; i < payload.skuBase64List.length; i++) {
           const skuId = (payload.skuIds[i] || `sku-${i}`).replace(/\\/g, '/')
+          const b64 = payload.skuBase64List[i]
           if (existing[i]) {
+            // 中文名已确定，传图辅助翻译英文名
+            if (b64) {
+              contentParts.push({ type: 'image_url', image_url: { url: b64 } })
+            }
             contentParts.push({
               type: 'text',
-              text: `SKU_ID: ${skuId} — 已有名称"${existing[i]}"，无需识别，请勿在skus数组中返回`,
+              text: `SKU_ID: ${skuId} — 中文名已确定为"${existing[i]}"，请直接用此中文名作为skuName，并根据图片生成准确的英文名skuNameEn`,
             })
-          } else if (payload.skuBase64List[i]) {
-            contentParts.push({ type: 'text', text: `SKU_ID: ${skuId} — 请识别此图的款式名称` })
-            contentParts.push({ type: 'image_url', image_url: { url: payload.skuBase64List[i] } })
+          } else if (b64) {
+            contentParts.push({
+              type: 'text',
+              text: `SKU_ID: ${skuId} — 请识别此图，生成中文名skuName和英文名skuNameEn`,
+            })
+            contentParts.push({ type: 'image_url', image_url: { url: b64 } })
+          } else {
+            // 图片读取失败，仅发送文字标签让AI尽力生成
+            contentParts.push({
+              type: 'text',
+              text: `SKU_ID: ${skuId} — 请识别此图（图片读取失败，请根据其他SKU的风格推测此SKU的名称，生成中文名skuName和英文名skuNameEn）`,
+            })
           }
         }
 
@@ -247,7 +308,7 @@ ${payload.folderName ? `素材包文件夹: ${payload.folderName}\n` : ''}${payl
         mainImagePath?: string
         aiConfigOverrides?: { apiKey: string; baseUrl: string; model: string }
       }
-    ): Promise<{ success: boolean; data?: { title: string; descriptionText: string; material: string; skuNamesEn: string[] }; error?: { type: string; message: string } }> => {
+    ): Promise<{ success: boolean; data?: { title: string; descriptionText: string; material: string }; error?: { type: string; message: string } }> => {
       const result = await generateShopeeEnglish({
         chineseTitle: payload.chineseTitle,
         chineseDescription: payload.chineseDescription,

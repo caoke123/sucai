@@ -8,10 +8,8 @@ const JIT_OPTIONS = [
 
 interface ShopeeInfoSectionProps {
   shopeeInfo: ShopeeInfo
-  aiLoading: boolean
   onSetShopeeInfo: (info: Partial<ShopeeInfo>) => void
   onSetAttributes: (attrs: Partial<ShopeeInfo['attributes']>) => void
-  onAiGenerate: () => void
 }
 
 function safeNum(value: number, fallback: number): number {
@@ -21,10 +19,8 @@ function safeNum(value: number, fallback: number): number {
 
 export function ShopeeInfoSection({
   shopeeInfo,
-  aiLoading,
   onSetShopeeInfo,
   onSetAttributes,
-  onAiGenerate,
 }: ShopeeInfoSectionProps): JSX.Element {
   const titleLen = shopeeInfo.title.length
   const titleOverLimit = titleLen > 120
@@ -36,22 +32,9 @@ export function ShopeeInfoSection({
         <h3 className="text-md font-medium text-[var(--color-text-primary)]">
           Shopee 发布信息
         </h3>
-        <button
-          onClick={onAiGenerate}
-          disabled={aiLoading}
-          className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium
-                     hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed
-                     transition-all duration-200 active:scale-[0.98] flex items-center gap-2"
-        >
-          {aiLoading ? (
-            <>
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              正在生成...
-            </>
-          ) : (
-            'AI 一键生成'
-          )}
-        </button>
+        <span className="text-xs text-[var(--color-text-tertiary)] italic">
+          ✨ 英文信息将随顶部「AI 智能填表」一并自动生成
+        </span>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

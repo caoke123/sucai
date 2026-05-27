@@ -123,7 +123,7 @@ export async function generateShopeeEnglish(
     })
 
     // 解析响应
-    const parseResult = parseShopeeResponse(response.content, input.skuNames.length)
+    const parseResult = parseShopeeResponse(response.content)
 
     if (!parseResult.success) {
       return {
@@ -150,6 +150,8 @@ export interface TranslateSingleSkuInput {
   aiConfigOverrides?: Partial<AiProviderConfig>
 }
 
+const MEANINGLESS_SKU_NAME = /^(图|款|色|样|货|件|个|只|条|未命名|temp|image|picture|pic|photo|sku)$/i
+
 export async function translateSingleSku(
   input: TranslateSingleSkuInput,
 ): Promise<AiCallResult<{ nameEn: string }>> {
@@ -162,47 +164,61 @@ export async function translateSingleSku(
       return { success: false, error: { type: 'ApiKeyMissing', message: '请先在系统配置中设置 AI API Key' } }
     }
 
-    let skuImageBase64: string | undefined
-    if (input.skuImagePath) {
+    // 智能降级判定: 中文名有意义 → Text-only; 无意义/缺名/单字 → Vision 识图
+    const trimmedName = (input.skuName || '').trim()
+    const isMeaningless = !trimmedName ||
+      trimmedName.length <= 1 ||
+      MEANINGLESS_SKU_NAME.test(trimmedName)
+    const mustUseVision = isMeaningless && input.skuImagePath
+
+    const contentParts: unknown[] = []
+
+    if (mustUseVision) {
+      console.log(`[AI Translate] 无法降级，使用 Vision 识图翻译: "${input.skuName}" (${input.skuFileName || '无文件名'})`)
       try {
-        skuImageBase64 = await compressImageToBase64(input.skuImagePath)
-      } catch { /* skip image if failed */ }
+        const base64 = await compressImageToBase64(input.skuImagePath!)
+        contentParts.push({ type: 'image_url', image_url: { url: base64 } })
+      } catch (compressError) {
+        console.warn('[AI Translate] 图片压缩失败，降级为纯文本翻译:', compressError)
+      }
+    } else {
+      console.log(`[AI Translate] 命中降级条件，纯文本翻译: "${input.skuName}"`)
     }
 
     const fileNameHint = input.skuFileName
-      ? `Original file name: "${input.skuFileName}" (may contain product/variant hints)\n`
+      ? `Original Image Filename Clue: "${input.skuFileName}" (may contain product/variant hints)\n`
       : ''
 
-    const userPrompt = `Translate this single SKU variant name to a natural English e-commerce name.
+    const textPrompt = `Generate a natural English e-commerce variant name for this single SKU.
 
-[CONTEXT]
-Product Chinese Title: ${input.chineseTitle || '(not set)'}
+[PRODUCT CONTEXT]
+Product Title: ${input.chineseTitle || '(not set)'}
 Category: ${input.category || '(not specified)'}
-SKU Chinese Name: ${input.skuName}
+SKU Chinese Name: ${input.skuName || 'None'}
 ${fileNameHint}
 [RULES]
-- This is a VARIANT of the product described in the title
-- Combine: variant identifier + product type = natural English name
-- Example: title="超Q彩虹毛衣小熊挂件", SKU="橙色" → "Orange Sweater Bear Charm"
-- 2-5 words, Title Case
-- DO NOT output bare color words
+1. Combine variant identifier + product type to form a natural e-commerce variant name.
+2. 2-5 words, Title Case.
+3. Never output bare colors (e.g. "Orange Hairpin", not "Orange").
+4. Strictly output ONLY the translated English name. No markdown, no quotes, no conversational filler.`
 
-Return ONLY the English name, no JSON, no explanation. Just the name.`
-
-    const contentParts: unknown[] = [{ type: 'text', text: userPrompt }]
-    if (skuImageBase64) {
-      contentParts.unshift({ type: 'image_url', image_url: { url: skuImageBase64 } })
-    }
+    contentParts.push({ type: 'text', text: textPrompt })
 
     const response = await callDoubaoApi(config, {
       messages: [
+        { role: 'system', content: 'You are a professional cross-border e-commerce translation expert. Translate a single SKU variant to a natural English e-commerce name. Output ONLY the English name itself, 2-5 words, Title Case. Never output quotes, explanation, or trailing dots.' },
         { role: 'user', content: contentParts },
       ],
       maxTokens: 50,
-      temperature: 0.5,
+      temperature: 0.3,
     })
 
-    const nameEn = response.content.trim().replace(/['"]/g, '')
+    // 严格清洗: 剥离引号/句号/前后空格
+    const nameEn = response.content
+      .trim()
+      .replace(/^['"“‘「\s]+|['"”'」\s]+$/g, '')
+      .replace(/\.$/, '')
+      .trim()
 
     return { success: true, data: { nameEn: nameEn || input.skuName } }
   } catch (error) {

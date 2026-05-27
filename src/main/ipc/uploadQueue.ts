@@ -206,7 +206,8 @@ export class UploadQueueManager {
         }
       }
 
-      const alreadyHasR2 = !!originalJson.r2
+      const r2 = originalJson.r2 as { basePath?: string; syncedAt?: string } | undefined
+      const alreadyHasR2 = !!r2?.basePath && !!r2?.syncedAt
 
       task.totalFiles = otherFiles.length + emptyDirs.length + 1
       this.pushStateToRenderer()

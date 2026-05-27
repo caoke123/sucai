@@ -45,7 +45,6 @@ interface CallShopeeEnglishResult {
     title: string
     descriptionText: string
     material: string
-    skuNamesEn: string[]
   }
   error?: { type: string; message: string }
 }
@@ -95,6 +94,7 @@ declare global {
       uploadQueueClearCompleted: () => Promise<void>
       onUploadQueueUpdate: (callback: (state: UploadQueueState) => void) => void
       offUploadQueueUpdate: (callback: (state: UploadQueueState) => void) => void
+      clearImageCache: () => Promise<{ success: boolean; error?: string }>
     }
     api: {
       db: {

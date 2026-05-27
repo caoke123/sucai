@@ -132,6 +132,6 @@ export function buildV45ProductJson(input: ExportV45Input): ProductOutput {
     skus,
     images,
     pim: { syncedAt: null, status: 'ready', notes: '' },
-    r2: { basePath: '', syncedAt: '' },
+    r2: { basePath: '', syncedAt: '' }, // 空字符串 = 未同步；uploadQueue 以 !!basePath && !!syncedAt 判断是否已上传
   }
 }

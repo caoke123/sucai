@@ -19,14 +19,12 @@ SHOPEE PLATFORM RULES:
 2. Include exactly 3 trending keywords naturally — no keyword stuffing, no duplicates
 3. No platform/shop names in title or description
 4. Description: 500-1500 chars, plain text, include [IMAGE] placeholder
-5. SKU names: 2-5 words, Title Case, NOT bare colors
 
 OUTPUT FORMAT — Return only a valid JSON object:
 {
   "title": "...",
   "descriptionText": "...",
-  "material": "...",
-  "skuNamesEn": ["...", "..."]
+  "material": "..."
 }`
 
 export interface ShopeePromptInput {
@@ -42,7 +40,6 @@ export function buildShopeePrompt(input: ShopeePromptInput): {
   messages: Array<{ role: string; content: unknown }>
 } {
   const { chineseTitle, chineseDescription, category, skuNames, originalFileNames } = input
-  const skuNamesText = skuNames.map((n) => n || '(未命名)').join(', ')
 
   // 构建文件名上下文
   let fileNameContext = ''
@@ -59,18 +56,6 @@ export function buildShopeePrompt(input: ShopeePromptInput): {
 Product Chinese Title: ${chineseTitle || '(not set)'}
 Category: ${category || '(not specified)'}
 Chinese Description: ${chineseDescription || '(no description)'}${fileNameContext}
-[SKU VARIANTS]
-Chinese Names: ${skuNamesText}
-
-[TRANSLATION RULES FOR SKU NAMES]
-- Original file names are VALUABLE clues — extract product type, color, style from them
-- "蝴蝶结" → Bow, "毛衣" → Sweater/Knit, "挂件" → Charm/Pendant/Keychain
-- "彩虹" → Rainbow, "小熊" → Bear/Teddy, "毛绒" → Plush
-- SKU Chinese name is the VARIANT identifier, NOT the full product name
-- Combine: variant identifier + product type from title/filename → natural English name
-- Example: title="超Q彩虹毛衣小熊挂件", SKU="橙色" → "Orange Sweater Bear Charm"
-- Never output bare colors like "Orange" or "Pink"
-
 [CONTENT REQUIREMENTS]
 Title:
 - Title Case, 34-180 chars (aim 80-120)

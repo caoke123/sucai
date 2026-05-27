@@ -6,7 +6,6 @@ import {
   STYLE_KEYWORD_MAP,
   INVALID_FILENAME_BLACKLIST,
   MEANINGLESS_NAME_REGEX,
-  DEFAULT_SHOPEE_VALUES,
 } from '@shared/constants'
 import { BasicInfoSection } from './step3/sections/BasicInfoSection'
 import { ShopeeInfoSection } from './step3/sections/ShopeeInfoSection'
@@ -188,8 +187,6 @@ export function ProductForm(): JSX.Element {
 
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
-  const [shopeeAiLoading, setShopeeAiLoading] = useState(false)
-  const [shopeeAiError, setShopeeAiError] = useState<string | null>(null)
   const [translatingSkuCode, setTranslatingSkuCode] = useState<string | null>(null)
   const [batchTranslating, setBatchTranslating] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -230,7 +227,16 @@ export function ProductForm(): JSX.Element {
     const skuImages = images.filter((img) => img.labels.includes('SKU图'))
     if (skuImages.length === 0) return
 
-    const initialSkuList = skuImages.map((img) => {
+    // 按 skuSpec 去重，相同 skuSpec 只保留第一张
+    const seen = new Set<string>()
+    const dedupedSkuImages = skuImages.filter((img) => {
+      const key = img.skuSpec?.trim() || img.fileName
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    const initialSkuList = dedupedSkuImages.map((img) => {
       const filenameColor = extractSkuFromFilename(img.fileName)
       const colorName = img.skuSpec || filenameColor || ''
       const needAiName = !colorName
@@ -250,8 +256,28 @@ export function ProductForm(): JSX.Element {
       }
     })
 
-    setSkuList(initialSkuList)
+    const colorNameCount = new Map<string, number>()
+    for (const sku of initialSkuList) {
+      if (sku.colorName) {
+        colorNameCount.set(sku.colorName, (colorNameCount.get(sku.colorName) ?? 0) + 1)
+      }
+    }
+    const dedupedList = initialSkuList.map((sku) => {
+      if (sku.colorName && (colorNameCount.get(sku.colorName) ?? 0) > 1) {
+        return { ...sku, colorName: '', needAiName: true }
+      }
+      return sku
+    })
+
+    setSkuList(dedupedList)
   }, [images])
+
+  // 切换产品时清理主进程图片缓存
+  useEffect(() => {
+    if (productCode) {
+      window.electronAPI?.clearImageCache()
+    }
+  }, [productCode])
 
   // 类目/SKU颜色变更 → 重新计算所有 SKU 编码
   useEffect(() => {
@@ -300,9 +326,8 @@ export function ProductForm(): JSX.Element {
           type: 'sku' as const,
           index: i,
           readPath: sku.imagePath,
-          needImage: sku.needAiName === true,
+          needImage: true,
         }))
-        .filter((t) => t.needImage)
 
       setSuccessMessage('正在并发读取全部图片（主图 + SKU图）...')
 
@@ -341,10 +366,13 @@ export function ProductForm(): JSX.Element {
         const safeId = (s.imagePath || `sku-${i}`).replace(/\\/g, '/')
         skuIds.push(safeId)
         if (s.needAiName) {
-          skuBase64List.push(skuB64ByIndex.get(i) || '')
+          const b64 = skuB64ByIndex.get(i) || ''
+          if (!b64) console.warn(`[AI填表] SKU图片读取失败，将降级处理: ${s.imagePath}`)
+          skuBase64List.push(b64)
           existingNames.push('')
         } else {
-          skuBase64List.push('')
+          const b64 = skuB64ByIndex.get(i) || ''
+          skuBase64List.push(b64)
           existingNames.push(s.colorName)
         }
       }
@@ -415,9 +443,27 @@ export function ProductForm(): JSX.Element {
             (s) => s.imagePath.replace(/\\/g, '/') === aiSku.skuId
           )
           if (targetIndex !== -1) {
-            s3.updateSkuItem(targetIndex, { colorName: aiSku.skuName, needAiName: false })
+            s3.updateSkuItem(targetIndex, {
+              colorName: aiSku.skuName,
+              skuNameEn: (aiSku as Record<string, unknown>).skuNameEn as string || '',
+              needAiName: false,
+            })
             skuSucceeded++
           }
+        }
+      }
+
+      // 回填 Shopee 信息 (来自 AI 智能填表的合并返回)
+      if (infoData.shopee) {
+        const shopeeData = infoData.shopee as Record<string, unknown>
+        if (shopeeData.title) {
+          setShopeeInfo({ title: shopeeData.title as string })
+        }
+        if (shopeeData.descriptionText) {
+          setShopeeInfo({ descriptionText: shopeeData.descriptionText as string })
+        }
+        if (shopeeData.material) {
+          setShopeeAttributes({ material: shopeeData.material as string })
         }
       }
 
@@ -494,68 +540,6 @@ export function ProductForm(): JSX.Element {
     },
     [packagingPresets, updateSpu]
   )
-
-  // v4 Shopee AI 英文生成
-  const handleShopeeAiGenerate = async (): Promise<void> => {
-    if (!window.electronAPI) {
-      setShopeeAiError('AI 功能仅在桌面端可用')
-      return
-    }
-
-    const st = useSorterStore.getState()
-    const list = st.skuList
-
-    if (list.length === 0) {
-      setShopeeAiError('请先在图片标注步骤中标记 SKU 图')
-      return
-    }
-
-    setShopeeAiLoading(true)
-    setShopeeAiError(null)
-
-    try {
-      const mainImages = images.filter((img) => img.labels.includes('主图'))
-      const mainImagePath = mainImages.length > 0 ? mainImages[0].originalPath : undefined
-
-      const skuNames = list.map((sku) => sku.colorName)
-      const originalFileNames = list.map((sku) => {
-        return sku.imagePath?.replace(/^.*[\\/]/, '') || ''
-      })
-
-      const result = await window.electronAPI.callShopeeEnglish({
-        chineseTitle: productInfo.title,
-        chineseDescription: productInfo.description,
-        category: st.currentSpu?.categoryCode || '',
-        skuNames,
-        originalFileNames,
-        mainImagePath,
-        aiConfigOverrides: aiConfig,
-      })
-
-      if (!result.success) {
-        setShopeeAiError(result.error?.message || 'AI 生成失败')
-        return
-      }
-
-      const { title, descriptionText, material, skuNamesEn } = result.data!
-
-      // 回填 ShopeeInfo
-      setShopeeInfo({ title, descriptionText, leadTime: DEFAULT_SHOPEE_VALUES.leadTime })
-      setShopeeAttributes({ material })
-
-      // 回填每个 SKU 的英文名
-      skuNamesEn.forEach((nameEn, i) => {
-        if (nameEn && i < list.length) {
-          const st2 = useSorterStore.getState()
-          st2.updateSkuItem(i, { skuNameEn: nameEn })
-        }
-      })
-    } catch (e) {
-      setShopeeAiError(`AI 调用异常: ${(e as Error).message}`)
-    } finally {
-      setShopeeAiLoading(false)
-    }
-  }
 
   // v4.5 单 SKU 英文翻译
   const handleTranslateSku = async (index: number): Promise<void> => {
@@ -780,17 +764,9 @@ export function ProductForm(): JSX.Element {
 
         <ShopeeInfoSection
           shopeeInfo={shopeeInfo}
-          aiLoading={shopeeAiLoading}
           onSetShopeeInfo={setShopeeInfo}
           onSetAttributes={setShopeeAttributes}
-          onAiGenerate={handleShopeeAiGenerate}
         />
-
-        {shopeeAiError && (
-          <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-600">
-            {shopeeAiError}
-          </div>
-        )}
 
         <SkuTableSection
           skuList={skuList}

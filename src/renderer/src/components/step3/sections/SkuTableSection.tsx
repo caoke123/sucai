@@ -185,7 +185,7 @@ export function SkuTableSection({
         ) : (
           skuList.map((sku, idx) => (
             <div
-              key={sku.skuCode || sku.colorName || `sku-${idx}`}
+              key={sku.imagePath || idx}
               className="grid grid-cols-12 gap-2 items-center px-3 py-2.5 bg-white border border-gray-200 rounded-md
                          hover:border-[var(--color-primary)] transition-all duration-150"
             >

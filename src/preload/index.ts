@@ -40,7 +40,6 @@ interface CallShopeeEnglishResult {
     title: string
     descriptionText: string
     material: string
-    skuNamesEn: string[]
   }
   error?: { type: string; message: string }
 }
@@ -139,6 +138,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offUploadQueueUpdate: (callback: (state: UploadQueueState) => void): void => {
     ipcRenderer.removeListener('upload-queue-update', callback)
   },
+
+  // 清理主进程图片压缩缓存
+  clearImageCache: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('clear-image-cache'),
 })
 
 // 数据库操作 API
