@@ -202,7 +202,7 @@ fetch(api, { body: { stream: true } })
 6. 额外任务：同步生成 Shopee 平台优化的英文推广内容
 
 [SHOPEE PLATFORM LOCALIZATION RULES]
-- 标题 (shopee.title): 英文 Title Case，34-180个字符，自然融入3个热搜关键词
+- 标题 (shopee.title): 英文 Title Case，120-160个字符，自然融入至少3个热搜关键词
 - 描述 (shopee.descriptionText): 500-1500字符，纯文本，包含 [IMAGE] 占位符
 - 材质 (shopee.material): 2-4个英文材质词，逗号分隔
 

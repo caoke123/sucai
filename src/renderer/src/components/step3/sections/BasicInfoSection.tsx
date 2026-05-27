@@ -112,40 +112,6 @@ export function BasicInfoSection({
           />
         </div>
 
-        {/* 货源平台 */}
-        <div>
-          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1">
-            货源平台
-          </label>
-          <select
-            value={productInfo.sourcePlatform}
-            onChange={(e) => onSetProductInfo({ sourcePlatform: e.target.value })}
-            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
-                       focus:outline-none focus:border-[var(--color-primary)]
-                       text-[var(--color-text-primary)] bg-white"
-          >
-            <option value="1688">1688</option>
-            <option value="淘宝">淘宝</option>
-            <option value="其他">其他</option>
-          </select>
-        </div>
-
-        {/* 货源链接 */}
-        <div className="col-span-2">
-          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1">
-            货源链接
-          </label>
-          <input
-            type="text"
-            value={productInfo.sourceUrl}
-            onChange={(e) => onSetProductInfo({ sourceUrl: e.target.value })}
-            placeholder="https://detail.1688.com/offer/xxx.html"
-            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
-                       focus:outline-none focus:border-[var(--color-primary)]
-                       text-[var(--color-text-primary)]"
-          />
-        </div>
-
         {/* 货币类型 */}
         <div>
           <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1">
@@ -170,7 +136,12 @@ export function BasicInfoSection({
           </label>
           <select
             value={currentSpu?.categoryCode || ''}
-            onChange={(e) => onUpdateSpu({ categoryCode: e.target.value })}
+            onChange={(e) => {
+              const code = e.target.value
+              onUpdateSpu({ categoryCode: code })
+              const catName = categoryOptions.find((c) => c.code === code)?.name || ''
+              if (catName) onSetProductInfo({ category: catName })
+            }}
             className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
                        focus:outline-none focus:border-[var(--color-primary)]
                        text-[var(--color-text-primary)] bg-white"
@@ -189,20 +160,67 @@ export function BasicInfoSection({
           </span>
         </div>
 
-        {/* 属性 */}
-        <div className="col-span-2">
+        {/* 图案 / 商品类型 */}
+        <div>
           <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1">
-            属性
+            图案
+            <span className="ml-1 text-xs text-purple-500 select-none" title="由 AI 智能填表自动生成">🤖</span>
           </label>
           <input
             type="text"
-            value={productInfo.attributes}
-            onChange={(e) => onSetProductInfo({ attributes: e.target.value })}
-            placeholder="品牌:VOC；货号:D001（用中文分号分隔）"
+            value={productInfo.pattern}
+            onChange={(e) => onSetProductInfo({ pattern: e.target.value })}
+            placeholder="如：卡通、格纹、纯色"
             className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
                        focus:outline-none focus:border-[var(--color-primary)]
                        text-[var(--color-text-primary)]"
           />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1">
+            商品类型
+          </label>
+          <input
+            type="text"
+            value={productInfo.productType}
+            onChange={(e) => onSetProductInfo({ productType: e.target.value })}
+            placeholder="如：其他、挂件、玩具"
+            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
+                       focus:outline-none focus:border-[var(--color-primary)]
+                       text-[var(--color-text-primary)]"
+          />
+        </div>
+
+        {/* 材质 / Custom Product */}
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1">
+            材质
+            <span className="ml-1 text-xs text-purple-500 select-none" title="由 AI 智能填表自动生成">🤖</span>
+          </label>
+          <input
+            type="text"
+            value={productInfo.material}
+            onChange={(e) => onSetProductInfo({ material: e.target.value })}
+            placeholder="如：Resin, Rope, Metal Clip"
+            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
+                       focus:outline-none focus:border-[var(--color-primary)]
+                       text-[var(--color-text-primary)]"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1">
+            Custom Product
+          </label>
+          <select
+            value={productInfo.customProduct}
+            onChange={(e) => onSetProductInfo({ customProduct: e.target.value as 'No' | 'Yes' })}
+            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
+                       focus:outline-none focus:border-[var(--color-primary)]
+                       text-[var(--color-text-primary)] bg-white"
+          >
+            <option value="No">No</option>
+            <option value="Yes">Yes</option>
+          </select>
         </div>
 
         {/* 产品描述 */}

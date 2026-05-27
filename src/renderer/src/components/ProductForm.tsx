@@ -54,6 +54,14 @@ function isMeaninglessName(fileName: string): boolean {
   return MEANINGLESS_NAME_REGEX.some((regex) => regex.test(nameWithoutExt))
 }
 
+// SKU英文名截断保护：超过28字符时截到最后一个完整单词
+function truncateSkuNameEn(name: string): string {
+  if (!name || name.length <= 28) return name || ''
+  const truncated = name.slice(0, 28)
+  const lastSpace = truncated.lastIndexOf(' ')
+  return lastSpace > 0 ? truncated.slice(0, lastSpace) : truncated
+}
+
 function extractSkuFromFilename(filename: string): string | null {
   const nameWithoutExt = filename.replace(/\.[^.]+$/, '')
   if (isInvalidFilename(nameWithoutExt)) return null
@@ -263,6 +271,11 @@ export function ProductForm(): JSX.Element {
     const s2 = useSorterStore.getState()
     if (data.title && typeof data.title === 'string') setProductInfo({ title: data.title })
     if (data.description && typeof data.description === 'string') setProductInfo({ description: data.description })
+    if (data.category && typeof data.category === 'string') {
+      const catCode = getCategoryCode(data.category)
+      updateSpu({ categoryCode: catCode, spuName: data.category })
+      setProductInfo({ category: data.category })
+    }
     if (data.shortTitle && typeof data.shortTitle === 'string') {
       setShortTitle(data.shortTitle)
       const code = generateProductCode(data.shortTitle, s2.productCounter)
@@ -270,11 +283,12 @@ export function ProductForm(): JSX.Element {
       setProductInfo({ productNo: code })
       incrementCounter()
     }
+    if (data.material && typeof data.material === 'string') setProductInfo({ material: data.material })
+    if (data.pattern && typeof data.pattern === 'string') setProductInfo({ pattern: data.pattern })
     if (data.shopee) {
       const sh = data.shopee as Record<string, unknown>
       if (sh.title && typeof sh.title === 'string') setShopeeInfo({ title: sh.title })
       if (sh.descriptionText && typeof sh.descriptionText === 'string') setShopeeInfo({ descriptionText: sh.descriptionText })
-      if (sh.material && typeof sh.material === 'string') setShopeeAttributes({ material: sh.material })
     }
     if (data.skus && Array.isArray(data.skus)) {
       const currentList = getSkuList()
@@ -288,7 +302,7 @@ export function ProductForm(): JSX.Element {
         if (targetIndex !== -1) {
           s3.updateSkuItem(targetIndex, {
             colorName: s.skuName as string,
-            skuNameEn: (s.skuNameEn as string) || '',
+            skuNameEn: truncateSkuNameEn((s.skuNameEn as string) || ''),
             needAiName: false,
           })
         }
@@ -358,7 +372,7 @@ export function ProductForm(): JSX.Element {
       let firstSkuFilled = false
 
       const parser = {
-        filled: { title: false, shortTitle: false, category: false, description: false, shopeeTitle: false },
+        filled: { title: false, shortTitle: false, category: false, description: false, shopeeTitle: false, material: false, pattern: false },
         filledSkuIds: new Set<string>(),
 
         feed(delta: string): void {
@@ -381,6 +395,7 @@ export function ProductForm(): JSX.Element {
             if (m) {
               const catCode = getCategoryCode(m[1])
               updateSpu({ categoryCode: catCode, spuName: m[1] })
+              setProductInfo({ category: m[1] })
               if (catCode === 'BG') {
                 const s = useSorterStore.getState()
                 if (!s.shopeeInfo.jitInvitationCode) s.setShopeeInfo({ jitInvitationCode: 'IVCN202507240989' })
@@ -398,6 +413,16 @@ export function ProductForm(): JSX.Element {
             const m = text.match(/"shopee"\s*:\s*\{[^}]*"title"\s*:\s*"([^"]{1,200})"/)
             if (m) { setShopeeInfo({ title: m[1] }); this.filled.shopeeTitle = true }
           }
+          // 提取材质
+          if (!this.filled.material) {
+            const m = text.match(/"material"\s*:\s*"([^"]{1,100})"/)
+            if (m) { setProductInfo({ material: m[1] }); this.filled.material = true }
+          }
+          // 提取图案
+          if (!this.filled.pattern) {
+            const m = text.match(/"pattern"\s*:\s*"([^"]{1,100})"/)
+            if (m) { setProductInfo({ pattern: m[1] }); this.filled.pattern = true }
+          }
 
           // 提取完整 SKU 对象（含中英文名）
           const skuRe = /\{\s*"skuId"\s*:\s*"([^"]+)"\s*,\s*"skuName"\s*:\s*"([^"]+)"\s*,\s*"skuNameEn"\s*:\s*"([^"]+)"\s*\}/g
@@ -409,7 +434,7 @@ export function ProductForm(): JSX.Element {
               const idx = list.findIndex((s) => s.imagePath.replace(/\\/g, '/') === skuId)
               if (idx !== -1) {
                 const s3 = useSorterStore.getState()
-                s3.updateSkuItem(idx, { colorName: skuName, skuNameEn: skuNameEn || '', needAiName: false })
+                s3.updateSkuItem(idx, { colorName: skuName, skuNameEn: truncateSkuNameEn(skuNameEn || ''), needAiName: false })
                 if (!firstSkuFilled) { setSuccessMessage('正在生成剩余 SKU 名称...'); firstSkuFilled = true }
               }
             }
@@ -539,7 +564,7 @@ export function ProductForm(): JSX.Element {
           (s) => s.skuCode === targetCode || s.colorName === targetCode
         )
         if (targetIdx !== -1) {
-          st2.updateSkuItem(targetIdx, { skuNameEn: result.data.nameEn })
+          st2.updateSkuItem(targetIdx, { skuNameEn: truncateSkuNameEn(result.data.nameEn) })
         }
       }
     } catch (err) {
@@ -581,7 +606,7 @@ export function ProductForm(): JSX.Element {
             (s) => s.skuCode === r.id || s.colorName === r.id
           )
           if (targetIdx !== -1) {
-            st2.updateSkuItem(targetIdx, { skuNameEn: r.nameEn })
+            st2.updateSkuItem(targetIdx, { skuNameEn: truncateSkuNameEn(r.nameEn) })
           }
         }
       }

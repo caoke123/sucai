@@ -9,12 +9,13 @@ import type { ProductImages, SkuOutputV45 } from './sku'
 export interface ProductInfo {
   title: string
   currency: string
-  sourceUrl: string
-  sourcePlatform: string
   productNo: string
   category: string
   description: string
-  attributes: string
+  pattern: string
+  productType: string
+  material: string
+  customProduct: 'No' | 'Yes'
   spec1Name: string
   spec2Name: string
   skuSpecs: SkuSpecRow[]

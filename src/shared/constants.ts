@@ -73,7 +73,6 @@ export const DEFAULT_SHOPEE_VALUES = {
   leadTime: 5,
   minimumOrderQty: 5,
   jitInvitationCode: '',
-  material: '',
   size: '',
 }
 

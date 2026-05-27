@@ -91,7 +91,10 @@ export function buildV45ProductJson(input: ExportV45Input): ProductOutput {
         attributes: {
           brand: shopeeInfo.attributes?.brand || 'NoBrand',
           origin: shopeeInfo.attributes?.origin || '中国大陆',
-          material: shopeeInfo.attributes?.material || '',
+          '材质': productInfo.material || '',
+          '图案': productInfo.pattern || '',
+          '商品类型': productInfo.productType || '其他',
+          'Custom Product': productInfo.customProduct || 'No',
         },
         logistics: {
           leadTime: shopeeInfo.leadTime ?? 5,
@@ -109,7 +112,7 @@ export function buildV45ProductJson(input: ExportV45Input): ProductOutput {
         title: '',
         description: '',
         category: [] as string[],
-        attributes: { brand: 'NoBrand', origin: '中国大陆', material: '' },
+        attributes: { brand: 'NoBrand', origin: '中国大陆', '材质': '', '图案': '', '商品类型': '其他', 'Custom Product': 'No' },
         logistics: { leadTime: 5, minimumOrderQty: 5, jit: false },
         invitation: { code: '' },
         status: 'draft' as const,

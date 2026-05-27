@@ -16,11 +16,11 @@ export function validateShopeeRules(ctx: ValidationContext): ValidationIssue[] {
       level: 'error',
       message: 'Shopee 英文标题为必填项',
     })
-  } else if (shopee.title.length > 120) {
+  } else if (shopee.title.length > 160) {
     issues.push({
       field: 'shopee.title',
       level: 'error',
-      message: `Shopee 英文标题超过120字符 (当前 ${shopee.title.length})`,
+      message: `Shopee 英文标题超过160字符 (当前 ${shopee.title.length})`,
     })
   }
 
@@ -34,9 +34,9 @@ export function validateShopeeRules(ctx: ValidationContext): ValidationIssue[] {
   }
 
   // warning: 材质
-  if (!shopee.attributes.material || !shopee.attributes.material.trim()) {
+  if (!shopee.material || !shopee.material.trim()) {
     issues.push({
-      field: 'shopee.attributes.material',
+      field: 'material',
       level: 'warning',
       message: '建议填写商品材质信息',
     })

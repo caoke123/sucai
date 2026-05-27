@@ -15,6 +15,7 @@ export function ImageGrid(): JSX.Element {
   } = useSorterStore()
 
   const [showConfirm, setShowConfirm] = useState(false)
+  const [stepError, setStepError] = useState<string | null>(null)
 
   // 缓存预热：进入图片标注页时在后台静默预压缩所有图片
   useEffect(() => {
@@ -26,7 +27,35 @@ export function ImageGrid(): JSX.Element {
 
   const labeledCount = images.filter((i) => i.labels.some((l) => l !== '未分类')).length
   const totalCount = images.length
+  const mainImageCount = images.filter((img) => img.labels.includes('主图')).length
   const isAllSelected = selectedImageIds.length === totalCount
+  const isMainImageCountValid = mainImageCount >= 6 && mainImageCount <= 9
+
+  // 点击下一步：先校验主图数量，再跳转
+  const handleNextStep = (): void => {
+    if (mainImageCount < 6) {
+      setStepError(`主图数量不足，当前 ${mainImageCount} 张，至少需要 6 张（最多 9 张）`)
+      return
+    }
+    if (mainImageCount > 9) {
+      setStepError(`主图数量超限，当前 ${mainImageCount} 张，最多允许 9 张`)
+      return
+    }
+    setStepError(null)
+    setStep('info')
+  }
+
+  // 主图计数颜色和文案
+  const getMainCountDisplay = (): { text: string; className: string } => {
+    if (mainImageCount >= 6 && mainImageCount <= 9) {
+      return { text: `主图 ${mainImageCount} 张 ✓`, className: 'text-green-600 font-medium' }
+    }
+    if (mainImageCount < 6) {
+      return { text: `主图 ${mainImageCount} 张（需 6-9 张）`, className: 'text-orange-500 font-medium' }
+    }
+    return { text: `主图 ${mainImageCount} 张（最多 9 张）`, className: 'text-red-500 font-medium' }
+  }
+  const mainCountDisplay = getMainCountDisplay()
 
   // 确认返回第一步
   const handleConfirmBack = (): void => {
@@ -101,6 +130,8 @@ export function ImageGrid(): JSX.Element {
           <span className="text-sm text-[var(--color-text-secondary)]">
             共 <b className="text-[var(--color-text-primary)]">{totalCount}</b> 张图片，
             已标注 <b className="text-[var(--color-text-primary)]">{labeledCount}</b> 张
+            <span className="text-[var(--color-border)] mx-1">｜</span>
+            <span className={mainCountDisplay.className}>{mainCountDisplay.text}</span>
           </span>
           <button
             onClick={isAllSelected ? clearSelection : selectAll}
@@ -109,15 +140,23 @@ export function ImageGrid(): JSX.Element {
             {isAllSelected ? '取消全选' : '全选'}
           </button>
         </div>
-        <button
-          onClick={() => setStep('info')}
-          disabled={labeledCount === 0}
-          className="px-4 py-1.5 bg-[var(--color-primary)] text-white rounded-md text-sm font-medium
-                     hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed
-                     transition-colors duration-150"
-        >
-          下一步：填写产品信息
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          {stepError && (
+            <span className="text-xs text-red-500 leading-none">⚠️ {stepError}</span>
+          )}
+          <button
+            onClick={handleNextStep}
+            disabled={labeledCount === 0}
+            className={`px-4 py-1.5 text-white rounded-md text-sm font-medium
+                       transition-colors duration-150
+                       ${isMainImageCountValid
+                         ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)]'
+                         : 'bg-gray-400 opacity-60 hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed'}
+                       ${labeledCount === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            下一步：填写产品信息
+          </button>
+        </div>
       </div>
 
       {/* 操作提示 */}

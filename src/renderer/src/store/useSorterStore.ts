@@ -106,12 +106,13 @@ interface SorterStore {
 const defaultProductInfo: ProductInfo = {
   title: '',
   currency: 'CNY',
-  sourceUrl: '',
-  sourcePlatform: '1688',
   productNo: '',
   category: '',
   description: '',
-  attributes: '',
+  pattern: '',
+  productType: '其他',
+  material: '',
+  customProduct: 'No',
   spec1Name: '颜色',
   spec2Name: '尺码',
   skuSpecs: [],
@@ -134,7 +135,6 @@ const defaultShopeeInfo: ShopeeInfo = {
   attributes: {
     brand: DEFAULT_SHOPEE_VALUES.brand,
     origin: DEFAULT_SHOPEE_VALUES.origin,
-    material: DEFAULT_SHOPEE_VALUES.material,
     size: DEFAULT_SHOPEE_VALUES.size,
   },
   leadTime: DEFAULT_SHOPEE_VALUES.leadTime,
@@ -165,6 +165,7 @@ export const useSorterStore = create<SorterStore>()(
       images: [],
       setImages: (images) =>
         set((state) => {
+          console.log('[排查] setImages 被调用，新图片数量:', images.length)
           state.images = images
         }),
       setImageLabel: (id, label, skuSpec) =>
@@ -457,6 +458,7 @@ export const useSorterStore = create<SorterStore>()(
 
       reset: () =>
         set((state) => {
+          console.log('[排查] store reset 被调用')
           state.currentStep = 'folder'
           state.sourceFolderPath = ''
           state.images = []

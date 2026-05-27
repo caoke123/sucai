@@ -17,9 +17,9 @@ export interface ValidationContext {
   shopeeInfo?: {
     title: string
     descriptionText: string
-    attributes: { material: string }
     minimumOrderQty: number
     jitInvitationCode: string
+    material?: string
   }
   skus?: Array<{
     skuName: string

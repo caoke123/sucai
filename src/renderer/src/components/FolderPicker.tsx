@@ -34,6 +34,7 @@ export function FolderPicker(): JSX.Element {
     setIsLoading(true)
     setError(null)
     try {
+      console.log('[排查] 开始扫描文件夹:', sourceFolderPath)
       const result = await scanFolder(sourceFolderPath)
       if (!result.success) {
         setError(result.error || '扫描失败')
@@ -43,7 +44,10 @@ export function FolderPicker(): JSX.Element {
         setError('该文件夹中没有找到图片文件（支持 jpg/png/webp/gif/bmp/tiff）')
         return
       }
+      console.log('[排查] 扫描完成，图片数量:', result.images.length)
       setImages(result.images)
+      console.log('[排查] setImages 后，当前 store images 数量:',
+        useSorterStore.getState().images.length)
       setStep('labeling')
     } catch (e) {
       setError(`发生错误：${(e as Error).message}`)

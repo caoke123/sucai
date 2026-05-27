@@ -122,9 +122,18 @@ function migrateLegacyToV45(data: Record<string, unknown>): Record<string, unkno
           origin: oldShopee?.attributes
             ? (oldShopee.attributes as Record<string, unknown>).origin || DEFAULT_SHOPEE_VALUES.origin
             : DEFAULT_SHOPEE_VALUES.origin,
-          material: oldShopee?.attributes
-            ? (oldShopee.attributes as Record<string, unknown>).material || ''
+          '材质': oldShopee?.attributes
+            ? (oldShopee.attributes as Record<string, unknown>)['材质'] || (oldShopee.attributes as Record<string, unknown>).material || ''
             : '',
+          '图案': oldShopee?.attributes
+            ? (oldShopee.attributes as Record<string, unknown>)['图案'] || ''
+            : '',
+          '商品类型': oldShopee?.attributes
+            ? (oldShopee.attributes as Record<string, unknown>)['商品类型'] || '其他'
+            : '其他',
+          'Custom Product': oldShopee?.attributes
+            ? (oldShopee.attributes as Record<string, unknown>)['Custom Product'] || 'No'
+            : 'No',
         },
         logistics: {
           leadTime: Number(oldShopee?.leadTime) || 5,

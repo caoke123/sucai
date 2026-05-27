@@ -13,7 +13,6 @@ export interface ShopeeInfo {
 export interface ShopeeAttributes {
   brand: string
   origin: string
-  material: string
   size: string
 }
 
@@ -38,7 +37,10 @@ export interface PlatformShopee {
 export interface PlatformShopeeAttributes {
   brand: string
   origin: string
-  material: string
+  '材质': string
+  '图案': string
+  '商品类型': string
+  'Custom Product': string
 }
 
 export interface ShopeeLogistics {

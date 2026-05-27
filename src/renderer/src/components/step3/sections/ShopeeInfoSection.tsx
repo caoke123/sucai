@@ -23,7 +23,7 @@ export function ShopeeInfoSection({
   onSetAttributes,
 }: ShopeeInfoSectionProps): JSX.Element {
   const titleLen = shopeeInfo.title.length
-  const titleOverLimit = titleLen > 120
+  const titleOverLimit = titleLen > 160
   const orderQty = safeNum(shopeeInfo.minimumOrderQty, 5)
 
   return (
@@ -54,7 +54,7 @@ export function ShopeeInfoSection({
                        text-[var(--color-text-primary)]"
           />
           <div className={`text-xs mt-1 ${titleOverLimit ? 'text-[var(--color-danger)] font-medium' : 'text-[var(--color-text-tertiary)]'}`}>
-            {titleLen} / 120{titleOverLimit ? ' (超限!)' : ''}
+            {titleLen} / 160{titleOverLimit ? ' (超限!)' : ''}
           </div>
         </div>
 
@@ -101,22 +101,6 @@ export function ShopeeInfoSection({
             value={shopeeInfo.attributes.origin}
             onChange={(e) => onSetAttributes({ origin: e.target.value })}
             placeholder="中国大陆"
-            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
-                       focus:outline-none focus:border-[var(--color-primary)]
-                       text-[var(--color-text-primary)]"
-          />
-        </div>
-
-        {/* 材质 */}
-        <div>
-          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1">
-            材质
-          </label>
-          <input
-            type="text"
-            value={shopeeInfo.attributes.material}
-            onChange={(e) => onSetAttributes({ material: e.target.value })}
-            placeholder="Resin, Rope, Metal Clip"
             className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
                        focus:outline-none focus:border-[var(--color-primary)]
                        text-[var(--color-text-primary)]"
