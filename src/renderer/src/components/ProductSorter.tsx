@@ -2,12 +2,14 @@ import { useSorterStore } from '../store/useSorterStore'
 import { FolderPicker } from './FolderPicker'
 import { ImageGrid } from './ImageGrid'
 import { ProductForm } from './ProductForm'
+import { CompressStep } from './CompressStep'
 import { PreviewPanel } from './PreviewPanel'
 import { OutputResult } from './OutputResult'
 
 const STEPS = [
   { key: 'folder',   label: '选择文件夹' },
   { key: 'labeling', label: '图片标注' },
+  { key: 'compress', label: '图片压缩' },
   { key: 'info',     label: '产品信息' },
   { key: 'preview',  label: '确认输出' },
   { key: 'done',     label: '完成' },
@@ -75,6 +77,7 @@ export function ProductSorter(): JSX.Element {
       <div className="flex-1 overflow-hidden">
         {currentStep === 'folder'   && <FolderPicker />}
         {currentStep === 'labeling' && <ImageGrid />}
+        {currentStep === 'compress' && <CompressStep />}
         {currentStep === 'info'     && <ProductForm />}
         {currentStep === 'preview'  && <PreviewPanel />}
         {currentStep === 'done'     && <OutputResult />}

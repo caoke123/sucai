@@ -114,7 +114,7 @@ export class UploadQueueManager {
     const files = getAllFiles(task.localPackagePath, task.localPackagePath)
     const emptyDirs = getEmptyDirs(task.localPackagePath, task.localPackagePath)
     const totalFiles = files.length + emptyDirs.length
-    console.log('[UploadQueue] 扫描完成:', files.length, '文件 +', emptyDirs.length, '空目录 =', totalFiles)
+    console.log('[UploadQueue] Scan done:', files.length, 'files +', emptyDirs.length, 'empty dirs =', totalFiles)
     if (totalFiles === 0) {
       throw new Error('素材包目录为空，没有可上传的文件')
     }
@@ -193,19 +193,21 @@ export class UploadQueueManager {
       const productJsonFile = allFiles.find((f) => f === 'product.json' || f.endsWith('/product.json'))
       const otherFiles = allFiles.filter((f) => f !== productJsonFile)
 
-      console.log(`[R2 Upload] 扫描完成: ${allFiles.length} 个文件, ${emptyDirs.length} 个空目录, 文件夹: ${task.folderName}`)
+      console.log(`[R2 Upload] Scan done: ${allFiles.length} files, ${emptyDirs.length} empty dirs, folder: ${task.folderName}`)
 
       let originalJson: Record<string, unknown> = {}
       if (productJsonFile) {
         try {
           const raw = fs.readFileSync(path.join(basePath, productJsonFile), 'utf-8')
           originalJson = JSON.parse(raw)
+          console.log('[R2 Enrich] originalJson keys:', Object.keys(originalJson))
         } catch {
           // product.json 损坏时使用空对象
         }
       }
 
-      const alreadyHasR2 = !!originalJson.r2
+      const r2 = originalJson.r2 as { basePath?: string; syncedAt?: string } | undefined
+      const alreadyHasR2 = !!r2?.basePath && !!r2?.syncedAt
 
       task.totalFiles = otherFiles.length + emptyDirs.length + 1
       this.pushStateToRenderer()
@@ -243,7 +245,7 @@ export class UploadQueueManager {
           await uploadFile(relativePath)
         } catch (err) {
           failedFiles.push(relativePath)
-          console.error(`[R2 Upload] 失败: ${relativePath} — ${(err as Error).message}`)
+          console.error(`[R2 Upload] Failed: ${relativePath} — ${(err as Error).message}`)
         }
       }
 
@@ -260,7 +262,7 @@ export class UploadQueueManager {
             })
           )
         } catch (err) {
-          console.warn(`[R2 Upload] 空目录上传失败: ${relativePath}`)
+          console.warn(`[R2 Upload] Empty dir upload failed: ${relativePath}`)
         }
 
         task.uploadedFiles++
@@ -285,44 +287,101 @@ export class UploadQueueManager {
       }
 
       if (failedFiles.length > 0) {
-        console.error(`[R2 Upload] ${failedFiles.length} 个文件上传失败: ${failedFiles.join(', ')}`)
+        console.error(`[R2 Upload] ${failedFiles.length} files failed: ${failedFiles.join(', ')}`)
       }
 
       // 输出上传统计
       logUploadSummary(uploadedPaths, task.folderName)
 
-      // ===== Step 3: 构建 r2 字段 =====
+      // ===== Step 3: 构建 r2 字段 + 回写图片 URL =====
       if (!alreadyHasR2) {
         task.progress = Math.round(((task.totalFiles - 1) / task.totalFiles) * 100)
         this.pushStateToRenderer()
 
         const skus = (originalJson.skus as Array<Record<string, unknown>>) || []
-        const { r2Field, updatedSkus } = buildR2Metadata({
+        const { r2Field } = buildR2Metadata({
           folderName: task.folderName,
           baseUrl,
           uploadedPaths,
           originalSkus: skus,
         })
 
-        const finalJson = {
-          ...originalJson,
-          r2: r2Field,
-          skus: updatedSkus,
+        const finalJson = { ...originalJson }
+
+        // 建立 localPath → url 快速索引 (normalize 路径确保跨平台匹配)
+        const pathToUrl = new Map<string, string>()
+        for (const catImages of Object.values(r2Field.images)) {
+          for (const img of (catImages as Array<{ fileName: string; url: string }>)) {
+            for (const up of uploadedPaths) {
+              const upName = up.relativePath.replace(/\\/g, '/').split('/').pop() || ''
+              if (upName === img.fileName) {
+                const fullPath = path.normalize(path.join(basePath, up.relativePath))
+                pathToUrl.set(fullPath, img.url)
+                break
+              }
+            }
+          }
         }
 
-        // v4: 更新 assets 中的 r2Url + uploaded 标记
-        const existingAssets = originalJson.assets as Record<string, Array<Record<string, unknown>>> | undefined
-        if (existingAssets) {
-          const enrichedAssets: Record<string, Array<Record<string, unknown>>> = {}
-          for (const [cat, descriptors] of Object.entries(existingAssets)) {
-            enrichedAssets[cat] = (descriptors as Array<Record<string, unknown>>).map((d) => {
-              const fileName = d.fileName as string
-              const catImages = (r2Field.images as Record<string, Array<{ fileName: string; url: string }>>)[cat] || []
-              const matched = catImages.find((img) => img.fileName === fileName)
-              return matched ? { ...d, r2Url: matched.url, uploaded: true } : d
+        console.log(`[R2 Enrich] pathToUrl map has ${pathToUrl.size} entries`)
+
+        // v4.5: enrich images.main[]/detail[]
+        const existingImages = originalJson.images as Record<string, Array<Record<string, unknown>>> | undefined
+        if (existingImages) {
+          console.log('[R2 Enrich] v4.5 images path detected')
+          const enrichedImages: Record<string, Array<Record<string, unknown>>> = {}
+          for (const cat of ['main', 'detail']) {
+            let catMatch = 0; let catMiss = 0
+            enrichedImages[cat] = (existingImages[cat] || []).map((img: Record<string, unknown>) => {
+              const rawPath = (img.localPath as string) || ''
+              const localPath = rawPath ? path.normalize(rawPath) : ''
+              const url = localPath ? pathToUrl.get(localPath) : undefined
+              if (url) { catMatch++ } else { catMiss++ }
+              return url ? { ...img, r2Url: url } : img
             })
+            console.log(`[R2 Enrich] ${cat}: ${catMatch} matched, ${catMiss} missed`)
           }
-          finalJson.assets = enrichedAssets as unknown as typeof originalJson.assets
+          finalJson.images = enrichedImages as unknown as typeof originalJson.images
+
+          // v4.5: enrich skus[].images.primary
+          let skuMatch = 0; let skuMiss = 0
+          const enrichedSkus = ((finalJson.skus || originalJson.skus) as Array<Record<string, unknown>>).map((sku) => {
+            const imagesField = (sku as Record<string, unknown>).images as Record<string, unknown> | undefined
+            const primary = imagesField?.primary as Record<string, unknown> | undefined
+            if (primary?.localPath) {
+              const normalizedPath = path.normalize(primary.localPath as string)
+              const url = pathToUrl.get(normalizedPath)
+              if (url) { skuMatch++; return { ...sku, images: { primary: { ...primary, r2Url: url } } } }
+              else { skuMiss++ }
+            }
+            return sku
+          })
+          finalJson.skus = enrichedSkus as typeof originalJson.skus
+          console.log(`[R2 Enrich] skus: ${skuMatch} matched, ${skuMiss} missed`)
+        } else {
+          // 兼容旧 v4 格式 (assets)
+          const existingAssets = originalJson.assets as Record<string, Array<Record<string, unknown>>> | undefined
+          if (existingAssets) {
+            const enrichedAssets: Record<string, Array<Record<string, unknown>>> = {}
+            for (const [cat, descriptors] of Object.entries(existingAssets)) {
+              enrichedAssets[cat] = (descriptors as Array<Record<string, unknown>>).map((d) => {
+                const localPath = d.localPath as string
+                const url = localPath ? pathToUrl.get(localPath) : undefined
+                return url ? { ...d, r2Url: url, uploaded: true } : d
+              })
+            }
+            finalJson.assets = enrichedAssets as unknown as typeof originalJson.assets
+          }
+          finalJson.skus = skus.map((sku) => {
+            const url = (sku.imageUrl as string) || pathToUrl.get((sku.imagePath as string) || '')
+            return url ? { ...sku, imageUrl: url } : sku
+          })
+        }
+
+        // 精简 r2: 仅保留 basePath + syncedAt
+        finalJson.r2 = {
+          basePath: r2Field.basePath,
+          syncedAt: r2Field.syncedAt,
         }
 
         // ===== Step 4: 上传最终 product.json =====
@@ -347,8 +406,9 @@ export class UploadQueueManager {
             JSON.stringify(finalJson, null, 2),
             'utf-8'
           )
+          console.log('[R2 WriteBack] Local product.json updated (with r2Urls)')
         } catch (writeErr) {
-          console.error('[R2 Upload] 写回本地 product.json 失败:', (writeErr as Error).message)
+          console.error('[R2 Upload] Failed to write back product.json:', (writeErr as Error).message)
         }
       }
 
@@ -359,12 +419,12 @@ export class UploadQueueManager {
       task.publicBaseUrl = `${baseUrl}/products/${encodedFolder}/`
       this.pushStateToRenderer()
     } catch (error) {
-      const step = task.uploadedFiles === 0 ? '扫描文件' : '上传过程'
+      const step = task.uploadedFiles === 0 ? 'File scan' : 'Upload'
       const errMsg = `${step}失败: ${(error as Error).message}`
 
       task.retryCount++
       if (task.retryCount < UPLOAD_MAX_RETRIES) {
-        console.warn(`[R2 Upload] 重试 ${task.retryCount}/${UPLOAD_MAX_RETRIES}: ${errMsg}`)
+        console.warn(`[R2 Upload] Retry ${task.retryCount}/${UPLOAD_MAX_RETRIES}: ${errMsg}`)
         await new Promise((resolve) => setTimeout(resolve, UPLOAD_RETRY_DELAY_MS))
         task.status = 'pending'
         task.errorMessage = undefined
@@ -373,7 +433,7 @@ export class UploadQueueManager {
       } else {
         task.status = 'failed'
         task.errorMessage = errMsg
-        console.error(`[R2 Upload] 上传失败 (已重试${UPLOAD_MAX_RETRIES}次): ${errMsg}`)
+        console.error(`[R2 Upload] Failed after ${UPLOAD_MAX_RETRIES} retries: ${errMsg}`)
       }
       this.pushStateToRenderer()
     }

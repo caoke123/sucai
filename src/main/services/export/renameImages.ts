@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import type { ImageFile } from '@shared/types'
+import type { CompressResult } from '@shared/types'
 import { LABEL_TO_FOLDER } from '@shared/constants'
 
 export interface RenamedFile {
@@ -22,7 +23,11 @@ function getUniqueFileName(destDir: string, baseName: string, ext: string): stri
   return `${baseName}_${counter}${ext}`
 }
 
-export function renameAndCopyImages(packagePath: string, images: ImageFile[]): RenamedFile[] {
+export function renameAndCopyImages(
+  packagePath: string,
+  images: ImageFile[],
+  compressResults?: Record<string, CompressResult>,
+): RenamedFile[] {
   const results: RenamedFile[] = []
 
   // 按标签分组（支持多标签：同一图片可出现在多个分组）
@@ -53,11 +58,14 @@ export function renameAndCopyImages(packagePath: string, images: ImageFile[]): R
         newFileName = `${labelName}_${count}${image.fileExt}`
       }
 
+      // 优先使用压缩后的路径
+      const srcPath = compressResults?.[image.id]?.destPath ?? image.originalPath
+
       const destPath = path.join(destDir, newFileName)
-      fs.copyFileSync(image.originalPath, destPath)
+      fs.copyFileSync(srcPath, destPath)
 
       results.push({
-        sourcePath: image.originalPath,
+        sourcePath: srcPath,
         destPath,
         label,
         newFileName,

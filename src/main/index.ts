@@ -1,10 +1,10 @@
 // ==================== 全局异常容错 ====================
 process.on('uncaughtException', (error) => {
-  console.error('【未捕获的主进程异常】:', error)
+  console.error('[Main] Uncaught exception:', error)
 })
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('【未处理的 Promise 拒绝】:', promise, '原因:', reason)
+  console.error('[Main] Unhandled rejection:', promise, 'reason:', reason)
 })
 
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
@@ -22,8 +22,13 @@ import {
   getConfig,
   saveConfig,
   generateShopeeEnglish,
+  translateSingleSku,
+  translateSkuBatch,
 } from './services/ai'
 import type { AiProviderConfig } from './services/ai/provider/doubaoProvider'
+import { clearImageCompressionCache, prepareImageBase64 } from './services/ai/utils/compressImage'
+import { registerCompressImagesHandler, cleanupCompressTemp } from './ipc/compressImages'
+import { safeJsonParse } from '@shared/utils/safeJsonParse'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -50,6 +55,9 @@ function createWindow(): void {
   registerDbHandlers()
   registerR2ConfigHandlers()
 
+  // 图片压缩（步骤2.5）
+  registerCompressImagesHandler()
+
   // R2 上传队列单例
   const uploadQueueManager = new UploadQueueManager()
   uploadQueueManager.setWindow(mainWindow)
@@ -58,6 +66,35 @@ function createWindow(): void {
   // 打开本地文件夹
   ipcMain.handle('open-path', async (_event, dirPath: string): Promise<string> => {
     return shell.openPath(dirPath)
+  })
+
+  // 清理图片压缩缓存
+  ipcMain.handle('clear-image-cache', async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      clearImageCompressionCache()
+      return { success: true }
+    } catch (err) {
+      console.error('[IPC] Failed to clear image cache:', err)
+      return { success: false, error: String(err) }
+    }
+  })
+
+  // 缓存预热：后台静默预压缩所有图片
+  ipcMain.handle('preheat-image-cache', async (_event, imagePaths: string[]): Promise<{ preheated: number }> => {
+    const chunks: string[][] = []
+    for (let i = 0; i < imagePaths.length; i += 5) {
+      chunks.push(imagePaths.slice(i, i + 5))
+    }
+    let preheated = 0
+    for (const chunk of chunks) {
+      await Promise.all(
+        chunk.map((p) =>
+          prepareImageBase64(p).then(() => { preheated++ }).catch(() => {})
+        )
+      )
+    }
+    console.log(`[Preheat] Done ${preheated}/${imagePaths.length} images`)
+    return { preheated }
   })
 
   // 读取文件 Base64
@@ -76,73 +113,144 @@ function createWindow(): void {
     await saveConfig(config)
   })
 
-  // AI 视觉分析核心通道（主图分析 + SKU 命名 + 类目识别）
+  // AI 视觉分析核心通道（主图分析 + SKU 命名 + 类目识别 + Shopee 本地化）
   ipcMain.handle(
     'call-ai-vision',
     async (
       _event,
       payload: {
-        mainBase64List: string[];
-        skuBase64List: string[];
-        skuIds: string[];
-        existingNames?: string[];
+        mainImagePaths: string[]
+        skuImagePaths: string[]
+        skuIds: string[]
+        existingNames?: string[]
+        productTitle?: string
+        productCategory?: string
+        originalFileNames?: string[]
+        folderName?: string
         aiConfig?: { apiKey: string; baseUrl: string; model: string }
       }
     ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> => {
       try {
         const config = payload.aiConfig?.apiKey ? payload.aiConfig : await getConfig()
         if (!config.apiKey) {
-          return { success: false, error: 'AI 配置中未设置 API Key，请在系统配置中填入密钥' }
+          return { success: false, error: 'AI 配置中未设置 API Key' }
         }
+
+        // 主进程统一处理所有图片（读取+Sharp压缩+缓存，并发执行）
+        const t = Date.now()
+        const stats = { hitCount: 0, missCount: 0 }
+        const [mainBase64List, skuBase64List] = await Promise.all([
+          Promise.all(payload.mainImagePaths.map((p) =>
+            prepareImageBase64(p, stats)
+          )),
+          Promise.all(payload.skuImagePaths.map((p) =>
+            prepareImageBase64(p, stats).catch(() => '')
+          )),
+        ])
+        console.log(
+          `[Image Process] ${payload.mainImagePaths.length + payload.skuImagePaths.length} total, ` +
+          `${Date.now() - t}ms, ${stats.hitCount} hit, ${stats.missCount} miss`
+        )
 
         const contentParts: Array<Record<string, unknown>> = []
 
         // 主图
-        for (const b64 of payload.mainBase64List) {
-          contentParts.push({ type: 'image_url', image_url: { url: b64 } })
+        for (const b64 of mainBase64List) {
+          if (b64) contentParts.push({ type: 'image_url', image_url: { url: b64 } })
         }
 
-        // SKU 图：每张图前附加唯一 ID 文本标签；已有名称的不传图片
-        const existing = payload.existingNames || []
-        for (let i = 0; i < payload.skuBase64List.length; i++) {
-          const skuId = (payload.skuIds[i] || `sku-${i}`).replace(/\\/g, '/')
-          if (existing[i]) {
-            contentParts.push({
-              type: 'text',
-              text: `SKU_ID: ${skuId} — 已有名称"${existing[i]}"，无需识别，请勿在skus数组中返回`,
-            })
-          } else if (payload.skuBase64List[i]) {
-            contentParts.push({ type: 'text', text: `SKU_ID: ${skuId} — 请识别此图的款式名称` })
-            contentParts.push({ type: 'image_url', image_url: { url: payload.skuBase64List[i] } })
-          }
-        }
-
+        // 结构化上下文 (仅 push 一次, 在 SKU 循环之前)
         contentParts.push({
           type: 'text',
-          text: `你是一个跨境电商选品与数据录入专家。我为你提供了一系列产品图片，在每张 SKU 图片之前，我都用文本标明了该图片的【SKU_ID】。
+          text: `[PRODUCT CONTEXT]
+${payload.folderName ? `素材包文件夹: ${payload.folderName}\n` : ''}${payload.productTitle ? `产品中文标题: ${payload.productTitle}\n` : ''}${payload.productCategory ? `产品类目: ${payload.productCategory}\n` : ''}${payload.originalFileNames && payload.originalFileNames.length > 0 ? `原始图片文件名:\n${payload.originalFileNames.map((f, i) => `  [${i}] ${f}`).join('\n')}\n` : ''}
+你是跨境电商选品专家。基于产品上下文和图片，一次完成以下任务，输出纯 JSON（不带Markdown代码块）。
 
-请你仔细观察标记为"请识别此图"的 SKU 图片，为它生成一个精准且吸引人的【SKU 款式名称】。
-- 不要仅局限于颜色！可以是款式、样式、图案、材质或特定风格（如："miu系挂绳针织裙"、"复古做旧款"、"珍珠白蝴蝶结"、"库洛米同款"）。
-- 名字简练，控制在 10 个中文字符以内。
-- 如果标记为"已有名称，无需识别"，请跳过，不要在 skus 数组中返回它。
+[TASK 1 - 基础信息]
+title: ≤60字中文标题 | shortTitle: ≤10字 | category: 包包挂件/手机挂件/车内配饰/毛绒玩具 | description: 2-3句中文卖点描述
 
-此外：
-1. [category] 必须且只能从 "包包挂件"、"手机挂件"、"车内配饰"、"毛绒玩具" 中选择。
-2. 为产品生成标题(title，≤60字)、短标题(shortTitle，≤10字)、卖点描述(description)。
+[TASK 2 - 属性识别]
+material: 从下方 [REFERENCE DATA] 材质列表中选1个最匹配的值，禁止自造
+pattern: 1-3个英文单词 Title Case，描述产品外观造型，非颜色。参考分类：外观形状(Heart/Star/Moon/Crown/Bow/Flower)、卡通IP(Cartoon/Animal/Bear/Cat/Bunny)、色彩(Solid Color/Color Block/Gradient/Plaid/Striped)、食物(Croissant/Cherry/Fruit/Candy)、其他(Geometric/Abstract/Letter/Number)
 
-⚠️【极其重要】：在输出的 JSON 中，skus 数组内的每一个对象，必须包含 skuId 字段，且该字段的值必须与我发给你的图片标签【SKU_ID】完全一致！绝对不能张冠李戴！
+[TASK 3 - SKU]
+每个SKU生成: skuName(2-10汉字，颜色/款式特征，各SKU不重复) + skuNameEn(2-5词Title Case，≤28字符)
+中文名已确定的SKU：skuName照用原值不修改，只生成skuNameEn。skus数组必须包含每个SKU，不遗漏。
 
-输出纯 JSON，不带 Markdown 代码块，格式如下：
-{
-  "title": "...",
-  "shortTitle": "...",
-  "category": "包包挂件",
-  "description": "...",
-  "skus": [
-    { "skuId": "a_001", "skuName": "茱萸粉毛球款" }
-  ]
-}`,
+[TASK 4 - Shopee]
+shopee.title: 纯英文120-160字符(含空格)，融入下方 [REFERENCE DATA] 关键词列表中≥3个词组，自然融入不堆砌
+shopee.descriptionText: 纯英文纯文本，六段结构[PRODUCT NAME]/[SPECIFICATIONS]/[USE SCENARIOS]/[DESCRIPTION]/[HOW TO USE]/[CARE INSTRUCTIONS]，每段标题全大写方括号，段间空一行，实事求是
+shopee.material: 与material字段一致
+
+{ "title":"...", "shortTitle":"...", "category":"...", "description":"...", "material":"...", "pattern":"...", "shopee":{"title":"...","descriptionText":"...","material":"..."}, "skus":[{"skuId":"路径/文件名.jpg","skuName":"茱萸粉毛球款","skuNameEn":"Rose Pink Charm"}] }
+
+输出前确认: shopee.title 120-160字符且含≥3个关键词; skuNameEn ≤28字符; skus无遗漏; material必须在材质列表中; 纯JSON无代码块`,
         })
+
+        // 追加参考数据区段（材质列表 + Shopee 关键词），与任务指令分离
+        contentParts.push({
+          type: 'text',
+          text: `[REFERENCE DATA — 仅供选择参考，勿改动]
+
+材质白名单（必须从此列表选1个最匹配的值）：
+  竹纤维,帆布,羊绒,棉,羊毛,尼龙,涤纶,人造丝,PVC,橡胶,硅胶,丝绒,
+  ABS,粘土,纸,塑料,布面,木材,泡沫,玻璃,皮革,金属,雪纺,牛仔布,毡,
+  皮毛,针织,蕾丝,亚麻,其他,丝绸,合成皮,纺织,毛圈,莱卡,人造棉,Voal,
+  钻石,玉,银,珍珠,钢,编织,PU革,网状布,绒革,聚碳酸酯纤维,铝,陶瓷的,
+  铜,不锈钢,涂层的,合金,平织布,热塑性弹性体,纸板,太空棉,亚克力,结石,
+  精梳棉,法兰绒,超细纤维,黄麻,乙烯基胶,黄铜,胶乳,记忆泡沫,羽毛,
+  聚酯纤维填充,碳素钢,羊皮,热塑性聚氨酯,玛瑙,水晶,Modal,Faux Fur,
+  Corduroy,Braid,Calfskin,Cowhide,Goatskin,Lambskin,Metallic,Satin,
+  Twill,Acetate,Non-woven,Polypropylene,Recycled,Aluminum Alloy,
+  Artificial Leather,Shell,Silk/Satin,Straw/Bamboo,Polypropylene (PP),
+  Polyethylene (PE),Polystyrene (PS),Stainless,Gauze,Mineral,
+  Non-woven Fabric,Chenille,Turquoise,Resin,Iron,Polycarbonate (PC),
+  Cordura,Polímero,Polycotton,Cotton Blend,Cotton Polyester,Cotton Linen,
+  Silk Satin,Batik Fabric,Synthetic Fabric,Knitted Fabric,Waterproof Fabric,
+  Stretch Fabric,Organza,Plush,Genuine Leather,Microfiber Leather,
+  Vegan Leather,Zinc Alloy,Enamel,Rhinestone,Imitation Pearl,Beads,毛绒
+
+Shopee 热搜关键词（title中选≥3个，选与产品最相关的）：
+  bag charm / bag charms / bag accessories / keychain / keychains /
+  keychain cute / cute keychain / keychain for bag / bag keychain /
+  keychain accessories / keychain y2k / keychain cute for bag /
+  bag keychain accessories / bag keychain aesthetic / bag charms accessories /
+  handbag charm / key chain / key chain holder / bag charm accessories /
+  cherry keychain / cherry bag charm / cherry charm / cherry key chain /
+  croissant keychain / croissant bag charm / cat keychain / bunny keychain /
+  turtle keychain / snoopy keychain / snoopy accessories / snoopy /
+  bag accessories keychains and pins / accessories for bag /
+   palawit sa bag / keychain for bag aesthetic`,
+        })
+
+        // SKU 图：每张图前附加唯一 ID 文本标签
+        const existing = payload.existingNames || []
+        for (let i = 0; i < payload.skuIds.length; i++) {
+          const skuId = (payload.skuIds[i] || `sku-${i}`).replace(/\\/g, '/')
+          const b64 = skuBase64List[i] || ''
+          if (existing[i]) {
+            // 中文名已确定，传图辅助翻译英文名
+            if (b64) {
+              contentParts.push({ type: 'image_url', image_url: { url: b64 } })
+            }
+            contentParts.push({
+              type: 'text',
+              text: `SKU_ID: ${skuId} — 中文名已确定为"${existing[i]}"，请直接用此中文名作为skuName，并根据图片生成准确的英文名skuNameEn`,
+            })
+          } else if (b64) {
+            contentParts.push({
+              type: 'text',
+              text: `SKU_ID: ${skuId} — 请识别此图，生成中文名skuName和英文名skuNameEn`,
+            })
+            contentParts.push({ type: 'image_url', image_url: { url: b64 } })
+          } else {
+            // 图片读取失败，仅发送文字标签让AI尽力生成
+            contentParts.push({
+              type: 'text',
+              text: `SKU_ID: ${skuId} — 请识别此图（图片读取失败，请根据其他SKU的风格推测此SKU的名称，生成中文名skuName和英文名skuNameEn）`,
+            })
+          }
+        }
 
         const res = await fetch(`${config.baseUrl}/chat/completions`, {
           method: 'POST',
@@ -153,7 +261,8 @@ function createWindow(): void {
           body: JSON.stringify({
             model: config.model,
             messages: [{ role: 'user', content: contentParts }],
-            max_tokens: 2000,
+            max_tokens: 3000,
+            stream: true,
           }),
         })
 
@@ -162,19 +271,61 @@ function createWindow(): void {
           return { success: false, error: `AI 接口返回错误: ${res.status} ${errText}` }
         }
 
-        const data = await res.json()
-        const content = data.choices?.[0]?.message?.content || ''
-        const jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-
-        let parsed: Record<string, unknown>
-        try {
-          parsed = JSON.parse(jsonStr)
-        } catch (parseError) {
-          console.error('AI 返回的原始内容(JSON解析失败):', jsonStr.substring(0, 500))
-          return { success: false, error: `AI 返回数据格式异常: ${(parseError as Error).message}` }
+        // 流式读取并实时推送给渲染进程
+        const reader = res.body?.getReader()
+        if (!reader) {
+          return { success: false, error: 'AI 接口不支持流式响应' }
         }
 
-        return { success: true, data: parsed }
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let fullContent = ''
+
+        // 异步处理流式读取，不阻塞 handler 返回
+        ;(async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+
+              buffer += decoder.decode(value, { stream: true })
+              const lines = buffer.split('\n')
+              buffer = lines.pop() ?? ''
+
+              for (const line of lines) {
+                const trimmed = line.trim()
+                if (!trimmed.startsWith('data: ')) continue
+                const data = trimmed.slice(6)
+                if (data === '[DONE]') continue
+                try {
+                  const chunk = JSON.parse(data)
+                  const delta = chunk.choices?.[0]?.delta?.content
+                  if (delta) {
+                    fullContent += delta
+                    _event.sender.send('ai-vision-stream', { delta })
+                  }
+                } catch { /* 跳过解析失败的行 */ }
+              }
+            }
+          } catch (streamErr) {
+            console.error('[AI Stream] Read error:', streamErr)
+            _event.sender.send('ai-vision-stream', { error: (streamErr as Error).message, done: true })
+            return
+          }
+
+          // 流结束：发送完成信号 + 完整 JSON 供渲染进程兜底解析
+          const jsonStr = fullContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+          try {
+            const parsed = safeJsonParse(jsonStr)
+            _event.sender.send('ai-vision-stream', { done: true, data: parsed })
+          } catch (parseError) {
+            console.error('[AI] JSON parse failed, raw:', jsonStr.substring(0, 500))
+            _event.sender.send('ai-vision-stream', { error: `AI 返回数据格式异常: ${(parseError as Error).message}`, done: true })
+          }
+        })()
+
+        // 流式模式下立即返回，流数据通过 ai-vision-stream 事件推送
+        return { success: true, streaming: true }
       } catch (error) {
         return { success: false, error: `AI 调用失败: ${(error as Error).message}` }
       }
@@ -239,15 +390,17 @@ function createWindow(): void {
         chineseDescription: string
         category: string
         skuNames: string[]
+        originalFileNames?: string[]
         mainImagePath?: string
         aiConfigOverrides?: { apiKey: string; baseUrl: string; model: string }
       }
-    ): Promise<{ success: boolean; data?: { title: string; descriptionText: string; material: string; skuNamesEn: string[] }; error?: { type: string; message: string } }> => {
+    ): Promise<{ success: boolean; data?: { title: string; descriptionText: string; material: string }; error?: { type: string; message: string } }> => {
       const result = await generateShopeeEnglish({
         chineseTitle: payload.chineseTitle,
         chineseDescription: payload.chineseDescription,
         category: payload.category,
         skuNames: payload.skuNames,
+        originalFileNames: payload.originalFileNames,
         mainImagePath: payload.mainImagePath,
         aiConfigOverrides: payload.aiConfigOverrides,
       })
@@ -257,6 +410,57 @@ function createWindow(): void {
           success: false,
           error: { type: result.error!.type, message: result.error!.message },
         }
+      }
+
+      return { success: true, data: result.data }
+    }
+  )
+
+  // v4.5 单 SKU 英文翻译
+  ipcMain.handle(
+    'call-translate-sku',
+    async (
+      _event,
+      payload: {
+        chineseTitle: string
+        category: string
+        skuName: string
+        skuFileName?: string
+        skuImagePath?: string
+        aiConfigOverrides?: { apiKey: string; baseUrl: string; model: string }
+      }
+    ): Promise<{ success: boolean; data?: { nameEn: string }; error?: { type: string; message: string } }> => {
+      const result = await translateSingleSku(payload)
+
+      if (!result.success) {
+        return { success: false, error: { type: result.error!.type, message: result.error!.message } }
+      }
+
+      return { success: true, data: result.data }
+    }
+  )
+
+  // v4.5 批量 SKU 英文翻译
+  ipcMain.handle(
+    'call-translate-sku-batch',
+    async (
+      _event,
+      payload: {
+        skuList: Array<{ id: string; skuName: string; skuFileName?: string; skuImagePath?: string }>
+        title: string
+        category: string
+        aiConfigOverrides?: { apiKey: string; baseUrl: string; model: string }
+      }
+    ): Promise<{ success: boolean; data?: { results: Array<{ id: string; nameEn: string }> }; error?: { type: string; message: string } }> => {
+      const result = await translateSkuBatch({
+        skuList: payload.skuList,
+        title: payload.title,
+        category: payload.category,
+        aiConfigOverrides: payload.aiConfigOverrides,
+      })
+
+      if (!result.success) {
+        return { success: false, error: { type: result.error!.type, message: result.error!.message } }
       }
 
       return { success: true, data: result.data }
@@ -301,4 +505,9 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+// 应用退出前清理压缩临时目录
+app.on('before-quit', () => {
+  cleanupCompressTemp()
 })

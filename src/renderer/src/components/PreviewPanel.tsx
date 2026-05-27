@@ -3,6 +3,7 @@ import { useSorterStore } from '../store/useSorterStore'
 import { useFileSystem } from '../hooks/useFileSystem'
 import { validateProduct } from '@shared/validation'
 import type { ValidationContext } from '@shared/validation'
+import { TOOL_VERSION } from '@shared/constants'
 import type { ImageFile, ProductOutput } from '@shared/types'
 
 const LABEL_TO_FOLDER: Record<string, string> = {
@@ -45,7 +46,9 @@ export function PreviewPanel(): JSX.Element {
       shopeeInfo: {
         title: shopeeInfo?.title || '',
         descriptionText: shopeeInfo?.descriptionText || '',
-        attributes: { material: shopeeInfo?.attributes?.material || '' },
+        material: productInfo?.material || '',
+        minimumOrderQty: shopeeInfo?.minimumOrderQty ?? 5,
+        jitInvitationCode: shopeeInfo?.jitInvitationCode || '',
       },
       skus: (skuList || []).map((sku) => ({
         skuName: sku.colorName || '',
@@ -95,53 +98,83 @@ export function PreviewPanel(): JSX.Element {
     })
   }
 
-  // product.json 预览 (v4 structure)
+  // product.json 预览 (v4.5 structure)
   const previewJson = useMemo(() => {
     const pkgName = packageName
     const pkgPath = outputFolderPath
       ? `${outputFolderPath.replace(/\\/g, '/')}/${pkgName}`
       : ''
+    const now = new Date().toISOString()
+
+    const skuOutput = (skuList || []).map((sku, i) => ({
+      index: i,
+      skuCode: sku.skuCode,
+      nameZh: sku.colorName,
+      nameEn: sku.skuNameEn || '',
+      weight: sku.weight ?? 0,
+      size: {
+        length: 0, width: 0, height: 0,
+        unit: 'cm' as const,
+      },
+      pricing: {
+        cost: sku.costPrice ?? 0,
+        selling: sku.sellingPrice ?? 0,
+        currency: 'CNY' as const,
+      },
+      stock: sku.stock ?? 0,
+      images: {
+        primary: sku.imagePath
+          ? {
+              index: 0,
+              fileName: sku.imagePath.replace(/^.*[\\/]/, ''),
+              localPath: sku.imagePath,
+              r2Url: '',
+            }
+          : null,
+      },
+    }))
 
     return {
-      title: productInfo.title,
       productNo: productInfo.productNo,
-      category: productInfo.category,
-      description: productInfo.description,
-      outerPackaging: {
-        length: currentSpu?.outerPackLength ?? null,
-        width: currentSpu?.outerPackWidth ?? null,
-        height: currentSpu?.outerPackHeight ?? null,
-        weight: currentSpu?.outerPackWeight ?? null,
-        presetName: packagingPresets.find((p) => p.id === selectedPresetId)?.name || '',
+      toolVersion: TOOL_VERSION,
+      createdAt: now,
+      updatedAt: now,
+      internal: {
+        title: productInfo.title,
+        description: productInfo.description || '',
+        category: productInfo.category || '',
+        localPath: pkgPath,
       },
-      skus: (skuList || []).map((sku) => ({
-        skuCode: sku.skuCode,
-        skuName: sku.colorName,
-        size: sku.dimensions || '',
-        weight: sku.weight ?? 0,
-        costPrice: sku.costPrice ?? 0,
-        sellingPrice: sku.sellingPrice ?? 0,
-        stock: sku.stock ?? 0,
-        skuNameEn: sku.skuNameEn || '',
-        image: sku.imagePath ? sku.imagePath.replace(/^.*[\\/]/, '') : '',
-      })),
-      createdAt: new Date().toISOString(),
-      toolVersion: '4.0.0-beta.1',
-      localPath: pkgPath,
-      shopee: shopeeInfo ? {
-        title: shopeeInfo.title || '',
-        descriptionText: shopeeInfo.descriptionText || '',
+      platforms: {
+        shopee: {
+          title: shopeeInfo?.title || '',
+          description: shopeeInfo?.descriptionText || '',
+          category: [] as string[],
         attributes: {
-          brand: shopeeInfo.attributes?.brand || 'No Brand',
-          origin: shopeeInfo.attributes?.origin || 'China',
-          material: shopeeInfo.attributes?.material || '',
-          size: shopeeInfo.attributes?.size || '',
+          brand: shopeeInfo?.attributes?.brand || 'NoBrand',
+          origin: shopeeInfo?.attributes?.origin || '中国大陆',
+          '材质': productInfo?.material || '',
+          '图案': productInfo?.pattern || '',
+          '商品类型': productInfo?.productType || '其他',
+          'Custom Product': productInfo?.customProduct || 'No',
         },
-        leadTime: shopeeInfo.leadTime ?? 5,
-      } : undefined,
-      pim: { syncedAt: null, status: 'draft' as const },
+          logistics: {
+            leadTime: shopeeInfo?.leadTime ?? 5,
+            minimumOrderQty: shopeeInfo?.minimumOrderQty ?? 5,
+            jit: !!shopeeInfo?.jitInvitationCode,
+          },
+          invitation: { code: shopeeInfo?.jitInvitationCode || '' },
+          status: 'draft' as const,
+          publishedAt: null,
+          shopeeItemId: null,
+        },
+      },
+      skus: skuOutput,
+      images: { main: [], detail: [] },
+      pim: { syncedAt: null, status: 'ready' as const, notes: '' },
+      r2: { basePath: '', syncedAt: '' },
     }
-  }, [productInfo, skuList, currentSpu, packagingPresets, selectedPresetId, shopeeInfo, packageName, outputFolderPath])
+  }, [productInfo, skuList, shopeeInfo, packageName, outputFolderPath])
 
   const totalImages = images.filter((i) => i.labels.some((l) => l !== '未分类')).length
 
@@ -164,6 +197,7 @@ export function PreviewPanel(): JSX.Element {
         shortTitle,
         skuList: skuList || [],
         shopeeInfo,
+        compressResults: useSorterStore.getState().compress.results,
         outerPackaging: {
           length: currentSpu?.outerPackLength ?? 0,
           width: currentSpu?.outerPackWidth ?? 0,
@@ -378,7 +412,12 @@ export function PreviewPanel(): JSX.Element {
                 <div className="flex gap-4 text-xs text-[var(--color-text-tertiary)]">
                   <span>品牌: {shopeeInfo?.attributes?.brand || '-'}</span>
                   <span>产地: {shopeeInfo?.attributes?.origin || '-'}</span>
-                  <span>材质: {shopeeInfo?.attributes?.material || '-'}</span>
+                  <span>材质: {productInfo?.material || '-'}</span>
+                </div>
+                <div className="flex gap-4 text-xs text-[var(--color-text-tertiary)]">
+                  <span>备货: {shopeeInfo?.leadTime ?? '-'}天</span>
+                  <span>起订量: {shopeeInfo?.minimumOrderQty ?? '-'}件</span>
+                  <span>JIT: {shopeeInfo?.jitInvitationCode || '-'}</span>
                 </div>
               </div>
             </div>

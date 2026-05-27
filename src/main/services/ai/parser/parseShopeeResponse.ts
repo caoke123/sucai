@@ -4,7 +4,6 @@ export interface ShopeeAiResult {
   title: string
   descriptionText: string
   material: string
-  skuNamesEn: string[]
 }
 
 function sanitizeJsonString(raw: string): string {
@@ -39,7 +38,6 @@ function validateStringArray(value: unknown, fallback: string[]): string[] {
 
 export function parseShopeeResponse(
   rawContent: string,
-  expectedSkuCount: number,
 ): { success: true; data: ShopeeAiResult } | { success: false; error: string } {
   try {
     const cleaned = sanitizeJsonString(rawContent)
@@ -49,28 +47,14 @@ export function parseShopeeResponse(
     const descriptionText = validateStringField(parsed['descriptionText'], '')
     const material = validateStringField(parsed['material'], '')
 
-    const rawSkuNames = parsed['skuNamesEn']
-    const skuDefaults = Array(expectedSkuCount).fill('')
-    const skuNamesEn = validateStringArray(rawSkuNames, skuDefaults)
-
-    // 对齐 SKU 数量
-    if (skuNamesEn.length < expectedSkuCount) {
-      const diff = expectedSkuCount - skuNamesEn.length
-      for (let i = 0; i < diff; i++) {
-        skuNamesEn.push('')
-      }
-    } else if (skuNamesEn.length > expectedSkuCount) {
-      skuNamesEn.length = expectedSkuCount
-    }
-
     return {
       success: true,
-      data: { title, descriptionText, material, skuNamesEn },
+      data: { title, descriptionText, material },
     }
   } catch (parseErr) {
     const snippet = rawContent.substring(0, 200)
-    console.error('[ShopeeParser] JSON 解析失败:', (parseErr as Error).message)
-    console.error('[ShopeeParser] 原始内容片段:', snippet)
+    console.error('[ShopeeParser] JSON parse error:', (parseErr as Error).message)
+    console.error('[ShopeeParser] Raw content snippet:', snippet)
 
     return {
       success: false,

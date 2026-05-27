@@ -35,6 +35,13 @@ export interface R2ImageEntry {
   url: string
 }
 
+// v4.5 精简版 (product.json 中仅保留 basePath + syncedAt)
+export interface R2MetadataV45 {
+  basePath: string
+  syncedAt: string
+}
+
+// 旧版 R2Metadata (uploadQueue 内部仍使用, 用于构建)
 export interface R2Metadata {
   basePath: string
   baseUrl: string
@@ -46,7 +53,6 @@ export interface R2Metadata {
     size: R2ImageEntry[]
     certificate: R2ImageEntry[]
   }
-  // v4 扩展
   toolVersion?: string
   stockSummary?: {
     totalStock: number

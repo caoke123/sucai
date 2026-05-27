@@ -1,6 +1,6 @@
 // ==================== 工具版本 ====================
 // 与 package.json 保持同步，用于 product.json 的 toolVersion 字段
-export const TOOL_VERSION = '4.0.0'
+export const TOOL_VERSION = '4.6.0'
 
 // ==================== 标签 → 文件夹名称映射 ====================
 export const LABEL_TO_FOLDER: Record<string, string> = {
@@ -38,6 +38,14 @@ export const CATEGORY_CODE_MAP: Record<string, string> = {
   '毛绒玩具': 'TO',
 }
 
+// ==================== 内部类目 → Shopee 平台类目映射 ====================
+export const CATEGORY_TO_SHOPEE: Record<string, string[]> = {
+  '包包挂件': ['女包', '包包配件', '吊饰'],
+  '手机挂件': ['手机配件', '手机挂件'],
+  '车内配饰': ['汽车饰品', '汽车挂件'],
+  '毛绒玩具': ['毛绒玩具', '玩具配件'],
+}
+
 // ==================== 风格/颜色系编码表 ====================
 export const STYLE_CODE_MAP: Record<string, string> = {
   '白色系': 'WT',
@@ -68,10 +76,11 @@ export const DEFAULT_AI_CONFIG = {
 
 // ==================== v4 Shopee 默认值 ====================
 export const DEFAULT_SHOPEE_VALUES = {
-  brand: 'No Brand',
-  origin: 'China',
+  brand: 'NoBrand',
+  origin: '中国大陆',
   leadTime: 5,
-  material: '',
+  minimumOrderQty: 5,
+  jitInvitationCode: '',
   size: '',
 }
 

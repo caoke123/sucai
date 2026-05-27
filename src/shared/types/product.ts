@@ -1,20 +1,21 @@
 import type { ImageFile } from './image'
-import type { ShopeeInfo } from './shopee'
-import type { R2Metadata } from './r2'
+import type { ProductPlatforms } from './shopee'
+import type { R2MetadataV45 } from './r2'
 import type { PimExtension } from './pim'
-import type { ProductAssets } from './assets'
+import type { ProductImages, SkuOutputV45 } from './sku'
 
-// ==================== 产品基础信息 ====================
+// ==================== 产品基础信息 (UI Store 用, 不变) ====================
 
 export interface ProductInfo {
   title: string
   currency: string
-  sourceUrl: string
-  sourcePlatform: string
   productNo: string
   category: string
   description: string
-  attributes: string
+  pattern: string
+  productType: string
+  material: string
+  customProduct: 'No' | 'Yes'
   spec1Name: string
   spec2Name: string
   skuSpecs: SkuSpecRow[]
@@ -26,45 +27,26 @@ export interface SkuSpecRow {
   spec2?: string
 }
 
-// ==================== product.json 输出类型 ====================
+// ==================== product.json v4.5 输出类型 ====================
+
+export interface InternalInfo {
+  title: string
+  description: string
+  category: string
+  localPath: string
+}
 
 export interface ProductOutput {
-  title: string
   productNo: string
-  category: string
-  description: string
-  outerPackaging: OuterPackaging
-  skus: SkuOutput[]
-  createdAt: string
   toolVersion: string
-  // v4 扩展字段
-  localPath?: string
-  shopee?: ShopeeInfo
-  r2?: R2Metadata
-  pim?: PimExtension
-  assets?: ProductAssets
-}
-
-export interface OuterPackaging {
-  length: number | null
-  width: number | null
-  height: number | null
-  weight: number | null
-  presetName: string
-}
-
-export interface SkuOutput {
-  skuCode: string
-  skuName: string
-  size: string
-  weight: number
-  costPrice: number
-  sellingPrice: number
-  image: string
-  // v4 扩展字段
-  stock?: number
-  skuNameEn?: string
-  imageUrl?: string
+  createdAt: string
+  updatedAt: string
+  internal: InternalInfo
+  platforms: ProductPlatforms
+  skus: SkuOutputV45[]
+  images: ProductImages
+  pim: PimExtension
+  r2: R2MetadataV45
 }
 
 // ==================== IPC 通信类型 ====================
@@ -83,7 +65,8 @@ export interface OrganizeRequest {
     weight: number
     presetName: string
   }
-  shopeeInfo?: ShopeeInfo
+  shopeeInfo?: import('./shopee').ShopeeInfo
+  compressResults?: Record<string, import('./compress').CompressResult>
 }
 
 export interface OrganizeResult {

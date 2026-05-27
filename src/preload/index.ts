@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState } from '@shared/types'
+import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState, CompressResult } from '@shared/types'
 
 interface AiConfig {
   apiKey: string
@@ -8,8 +8,15 @@ interface AiConfig {
 }
 
 interface CallAiVisionPayload {
-  mainBase64List: string[]
-  skuBase64List: string[]
+  mainImagePaths: string[]
+  skuImagePaths: string[]
+  skuIds: string[]
+  existingNames?: string[]
+  productTitle?: string
+  productCategory?: string
+  originalFileNames?: string[]
+  folderName?: string
+  aiConfig?: AiConfig
 }
 
 interface CallAiVisionResult {
@@ -33,8 +40,22 @@ interface CallShopeeEnglishResult {
     title: string
     descriptionText: string
     material: string
-    skuNamesEn: string[]
   }
+  error?: { type: string; message: string }
+}
+
+interface CallTranslateSkuPayload {
+  chineseTitle: string
+  category: string
+  skuName: string
+  skuFileName?: string
+  skuImagePath?: string
+  aiConfigOverrides?: AiConfig
+}
+
+interface CallTranslateSkuResult {
+  success: boolean
+  data?: { nameEn: string }
   error?: { type: string; message: string }
 }
 
@@ -79,6 +100,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   callShopeeEnglish: (payload: CallShopeeEnglishPayload): Promise<CallShopeeEnglishResult> =>
     ipcRenderer.invoke('call-shopee-english', payload),
 
+  // v4.5 单 SKU 英文翻译
+  callTranslateSku: (payload: CallTranslateSkuPayload): Promise<CallTranslateSkuResult> =>
+    ipcRenderer.invoke('call-translate-sku', payload),
+
+  // v4.5 批量 SKU 翻译
+  callTranslateSkuBatch: (payload: {
+    skuList: Array<{ id: string; skuName: string; skuFileName?: string; skuImagePath?: string }>
+    title: string
+    category: string
+    aiConfigOverrides?: AiConfig
+  }): Promise<{ success: boolean; data?: { results: Array<{ id: string; nameEn: string }> }; error?: { type: string; message: string } }> =>
+    ipcRenderer.invoke('call-translate-sku-batch', payload),
+
   // R2 云存储配置
   r2ConfigGet: (): Promise<R2Config> =>
     ipcRenderer.invoke('r2-config-get'),
@@ -103,6 +137,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   offUploadQueueUpdate: (callback: (state: UploadQueueState) => void): void => {
     ipcRenderer.removeListener('upload-queue-update', callback)
+  },
+
+  // 清理主进程图片压缩缓存
+  clearImageCache: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('clear-image-cache'),
+
+  // 缓存预热：后台静默预压缩所有图片
+  preheatImageCache: (paths: string[]): Promise<{ preheated: number }> =>
+    ipcRenderer.invoke('preheat-image-cache', paths),
+
+  // AI 流式返回事件
+  onAiVisionStream: (callback: (data: { delta?: string; done?: boolean; error?: string; data?: Record<string, unknown> }) => void): void => {
+    ipcRenderer.on('ai-vision-stream', (_event, data) => callback(data))
+  },
+  offAiVisionStream: (): void => {
+    ipcRenderer.removeAllListeners('ai-vision-stream')
+  },
+
+  // 图片压缩（步骤2.5）
+  compressImages: (images: Array<{ id: string; srcPath: string }>): Promise<CompressResult[]> =>
+    ipcRenderer.invoke('compress-images', { images, sessionId: `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` }),
+  compressImagesAnalyze: (images: Array<{ id: string; srcPath: string }>): Promise<Array<{ id: string; srcPath: string; originalSize: number; width: number; height: number; needCompress: boolean }>> =>
+    ipcRenderer.invoke('compress-images-analyze', { images }),
+  onCompressProgress: (callback: (data: { id: string; result: CompressResult }) => void): void => {
+    ipcRenderer.on('compress-progress', (_event, data) => callback(data))
+  },
+  offCompressProgress: (callback: (data: { id: string; result: CompressResult }) => void): void => {
+    ipcRenderer.removeListener('compress-progress', callback)
   },
 })
 

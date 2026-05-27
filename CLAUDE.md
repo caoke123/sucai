@@ -52,7 +52,7 @@ Excel 导入模板由下游的 PIM 中台系统生成，本工具不涉及。
 ## 当前进度
 - [x] 步骤1：项目初始化 + 环境配置
 - [x] 步骤2：shared/types.ts + 基础配置
-- [ ] 步骤3：主进程 IPC 模块
-- [ ] 步骤4：渲染进程组件开发
-- [ ] 步骤5：Agent 服务
-- [ ] 步骤6：打包与部署
+- [x] 步骤3：主进程 IPC 模块 (organizeFiles / uploadQueue / r2Config / scanFolder / selectDirectory / dbHandlers)
+- [x] 步骤4：渲染进程组件开发 (ProductSorter / ProductForm / PreviewPanel / ImageGrid / OutputResult / UploadQueueBar)
+- [x] 步骤5：Agent 服务 (agent/server.ts — Express HTTP API, 端口 18899, PIM 嵌入模式)
+- [x] 步骤6：打包与部署 (electron-builder 配置 + dist/dist:mac/dist:linux 脚本)

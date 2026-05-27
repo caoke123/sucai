@@ -86,7 +86,7 @@ export function registerR2ConfigHandlers(): void {
   ipcMain.handle(
     'r2-config-test',
     async (): Promise<{ success: boolean; error?: string }> => {
-      console.log('[R2 Config] 开始测试连接, bucket:', cachedConfig.bucket, 'endpoint:', cachedConfig.endpoint)
+      console.log('[R2 Config] Testing connection, bucket:', cachedConfig.bucket, 'endpoint:', cachedConfig.endpoint)
       try {
         if (!cachedConfig.accessKeyId || !cachedConfig.secretAccessKey) {
           return { success: false, error: 'R2 密钥未配置，请先填入 Access Key ID 和 Secret Access Key' }
@@ -101,11 +101,11 @@ export function registerR2ConfigHandlers(): void {
           })
         )
 
-        console.log('[R2 Config] 连接测试成功')
+        console.log('[R2 Config] Connection test OK')
         return { success: true }
       } catch (error) {
         const msg = (error as Error).message || String(error)
-        console.error('[R2 Config] 连接测试失败:', msg)
+        console.error('[R2 Config] Connection test failed:', msg)
         return { success: false, error: msg }
       }
     }

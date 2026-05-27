@@ -21,7 +21,7 @@ export function createPool(config: DbConfig): Pool {
 
   // 拦截空闲连接意外断开导致的崩溃
   pool.on('error', (err) => {
-    console.error('PostgreSQL 连接池空闲连接发生意外错误 (已拦截):', err)
+    console.error('[PG Pool] Idle connection error (handled):', err)
   })
 
   return pool
@@ -54,7 +54,7 @@ export async function testConnection(config: DbConfig): Promise<{ success: boole
   })
 
   tempPool.on('error', (err) => {
-    console.error('临时连接池发生意外错误 (已拦截):', err)
+    console.error('[PG Temp Pool] Unexpected error (handled):', err)
   })
 
   try {
