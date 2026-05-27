@@ -117,43 +117,6 @@ function generateProductCode(shortTitle: string, counter: number): string {
   return `${initials}${numStr}`
 }
 
-// 图片压缩
-async function compressImageBase64(
-  base64Str: string,
-  maxWidth = 512,
-  maxHeight = 512,
-  quality = 0.65
-): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.src = base64Str
-    img.onload = () => {
-      let width = img.width
-      let height = img.height
-      if (width > maxWidth || height > maxHeight) {
-        if (width > height) {
-          height = Math.round((height * maxWidth) / width)
-          width = maxWidth
-        } else {
-          width = Math.round((width * maxHeight) / height)
-          height = maxHeight
-        }
-      }
-      const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) {
-        resolve(base64Str)
-        return
-      }
-      ctx.drawImage(img, 0, 0, width, height)
-      resolve(canvas.toDataURL('image/jpeg', quality))
-    }
-    img.onerror = () => resolve(base64Str)
-  })
-}
-
 // ==================== 主组件 ====================
 
 export function ProductForm(): JSX.Element {
@@ -295,6 +258,44 @@ export function ProductForm(): JSX.Element {
     st.setSkuList(updated)
   }, [currentSpu?.categoryCode, skuList.map((s) => s.colorName).join(',')])
 
+  // 流式完成后的兜底回填（确保所有字段不遗漏）
+  const finalBackfill = (data: Record<string, unknown>, getSkuList: () => typeof skuList): void => {
+    const s2 = useSorterStore.getState()
+    if (data.title && typeof data.title === 'string') setProductInfo({ title: data.title })
+    if (data.description && typeof data.description === 'string') setProductInfo({ description: data.description })
+    if (data.shortTitle && typeof data.shortTitle === 'string') {
+      setShortTitle(data.shortTitle)
+      const code = generateProductCode(data.shortTitle, s2.productCounter)
+      setProductCode(code)
+      setProductInfo({ productNo: code })
+      incrementCounter()
+    }
+    if (data.shopee) {
+      const sh = data.shopee as Record<string, unknown>
+      if (sh.title && typeof sh.title === 'string') setShopeeInfo({ title: sh.title })
+      if (sh.descriptionText && typeof sh.descriptionText === 'string') setShopeeInfo({ descriptionText: sh.descriptionText })
+      if (sh.material && typeof sh.material === 'string') setShopeeAttributes({ material: sh.material })
+    }
+    if (data.skus && Array.isArray(data.skus)) {
+      const currentList = getSkuList()
+      const s3 = useSorterStore.getState()
+      for (const aiSku of data.skus) {
+        const s = aiSku as Record<string, unknown>
+        if (!s.skuId || !s.skuName) continue
+        const targetIndex = currentList.findIndex(
+          (item) => item.imagePath.replace(/\\/g, '/') === s.skuId
+        )
+        if (targetIndex !== -1) {
+          s3.updateSkuItem(targetIndex, {
+            colorName: s.skuName as string,
+            skuNameEn: (s.skuNameEn as string) || '',
+            needAiName: false,
+          })
+        }
+      }
+    }
+  }
+
   // AI 一键智能填表
   const handleAiFill = async (): Promise<void> => {
     const mainImages = images.filter((img) => img.labels.includes('主图')).slice(0, 1)
@@ -306,58 +307,11 @@ export function ProductForm(): JSX.Element {
     setAiError(null)
 
     try {
-      const readB64 = async (imgPath: string): Promise<string> => {
-        if (!window.electronAPI) return ''
-        const raw = `data:image/jpeg;base64,${await window.electronAPI.readFileBase64(imgPath)}`
-        return compressImageBase64(raw)
-      }
-
       const st = useSorterStore.getState()
       const list = st.skuList
 
-      const mainTasks = mainImages.map((img) => ({
-        type: 'main' as const,
-        safeKey: img.originalPath.replace(/\\/g, '/'),
-        readPath: img.originalPath,
-      }))
-
-      const skuTasks = list
-        .map((sku, i) => ({
-          type: 'sku' as const,
-          index: i,
-          readPath: sku.imagePath,
-          needImage: true,
-        }))
-
-      setSuccessMessage('正在并发读取全部图片（主图 + SKU图）...')
-
-      const allReadResults = await Promise.all([
-        ...mainTasks.map(async (t) => {
-          const b64 = await readB64(t.readPath).catch(() => '')
-          return { type: 'main' as const, safeKey: t.safeKey, b64 }
-        }),
-        ...skuTasks.map(async (t) => {
-          const b64 = await readB64(t.readPath).catch(() => '')
-          return { type: 'sku' as const, index: t.index, b64 }
-        }),
-      ])
-
-      const mainB64List: string[] = []
-      for (const t of mainTasks) {
-        const result = allReadResults.find(
-          (r) => r.type === 'main' && r.safeKey === t.safeKey
-        )
-        mainB64List.push(result?.b64 || '')
-      }
-
-      const skuB64ByIndex = new Map<number, string>()
-      for (const r of allReadResults) {
-        if (r.type === 'sku') skuB64ByIndex.set(r.index, r.b64)
-      }
-
-      setSuccessMessage('图片读取完成，正在调用 AI 识别...')
-
-      const skuBase64List: string[] = []
+      const mainImagePaths = mainImages.map((img) => img.originalPath)
+      const skuImagePaths: string[] = []
       const skuIds: string[] = []
       const existingNames: string[] = []
 
@@ -365,14 +319,10 @@ export function ProductForm(): JSX.Element {
         const s = list[i]
         const safeId = (s.imagePath || `sku-${i}`).replace(/\\/g, '/')
         skuIds.push(safeId)
+        skuImagePaths.push(s.imagePath || '')
         if (s.needAiName) {
-          const b64 = skuB64ByIndex.get(i) || ''
-          if (!b64) console.warn(`[AI填表] SKU图片读取失败，将降级处理: ${s.imagePath}`)
-          skuBase64List.push(b64)
           existingNames.push('')
         } else {
-          const b64 = skuB64ByIndex.get(i) || ''
-          skuBase64List.push(b64)
           existingNames.push(s.colorName)
         }
       }
@@ -380,9 +330,12 @@ export function ProductForm(): JSX.Element {
       // 收集原始文件名
       const allOriginalNames = images.map((img) => img.fileName || '')
 
-      const infoResult = await window.electronAPI.callAiVision({
-        mainBase64List: mainB64List,
-        skuBase64List,
+      setSuccessMessage('AI 正在分析图片...')
+
+      // 流式启动：主进程立即返回，增量数据通过事件推送
+      const streamResult = await window.electronAPI.callAiVision({
+        mainImagePaths,
+        skuImagePaths,
         skuIds,
         existingNames,
         productTitle: st.productInfo.title || undefined,
@@ -392,91 +345,111 @@ export function ProductForm(): JSX.Element {
         aiConfig,
       })
 
-      if (!infoResult.success) {
-        setAiError(infoResult.error || 'AI 分析失败')
+      if (!streamResult.success) {
+        setAiError(streamResult.error || 'AI 分析失败')
         setAiLoading(false)
         setSuccessMessage(null)
         return
       }
 
-      setSuccessMessage('正在填写表单...')
+      // 流式回填：通过 StreamJsonParser 实时提取已完成字段并立即回填
+      let accumulated = ''
+      let firstTitleFilled = false
+      let firstSkuFilled = false
 
-      const infoData = infoResult.data as {
-        title?: string
-        shortTitle?: string
-        category?: string
-        description?: string
-        skus?: Array<{ skuId: string; skuName: string }>
-      }
+      const parser = {
+        filled: { title: false, shortTitle: false, category: false, description: false, shopeeTitle: false },
+        filledSkuIds: new Set<string>(),
 
-      if (infoData.title) setProductInfo({ title: infoData.title })
-      if (infoData.description) setProductInfo({ description: infoData.description })
+        feed(delta: string): void {
+          accumulated += delta
+          const text = accumulated
 
-      if (infoData.shortTitle) {
-        setShortTitle(infoData.shortTitle)
-        const s2 = useSorterStore.getState()
-        const code = generateProductCode(infoData.shortTitle, s2.productCounter)
-        setProductCode(code)
-        setProductInfo({ productNo: code })
-        incrementCounter()
-      }
+          // 提取标题
+          if (!this.filled.title) {
+            const m = text.match(/"title"\s*:\s*"([^"]{1,200})"/)
+            if (m) { setProductInfo({ title: m[1] }); this.filled.title = true; setSuccessMessage('正在生成 SKU 名称...') }
+          }
+          // 提取短标题
+          if (!this.filled.shortTitle) {
+            const m = text.match(/"shortTitle"\s*:\s*"([^"]{1,50})"/)
+            if (m) { setShortTitle(m[1]); this.filled.shortTitle = true }
+          }
+          // 提取类目
+          if (!this.filled.category) {
+            const m = text.match(/"category"\s*:\s*"([^"]{1,50})"/)
+            if (m) {
+              const catCode = getCategoryCode(m[1])
+              updateSpu({ categoryCode: catCode, spuName: m[1] })
+              if (catCode === 'BG') {
+                const s = useSorterStore.getState()
+                if (!s.shopeeInfo.jitInvitationCode) s.setShopeeInfo({ jitInvitationCode: 'IVCN202507240989' })
+              }
+              this.filled.category = true
+            }
+          }
+          // 提取描述
+          if (!this.filled.description) {
+            const m = text.match(/"description"\s*:\s*"((?:[^"\\]|\\.){1,500})"/)
+            if (m) { setProductInfo({ description: m[1] }); this.filled.description = true }
+          }
+          // 提取 Shopee 标题
+          if (!this.filled.shopeeTitle) {
+            const m = text.match(/"shopee"\s*:\s*\{[^}]*"title"\s*:\s*"([^"]{1,200})"/)
+            if (m) { setShopeeInfo({ title: m[1] }); this.filled.shopeeTitle = true }
+          }
 
-      if (infoData.category) {
-        const catCode = getCategoryCode(infoData.category)
-        updateSpu({ categoryCode: catCode, spuName: infoData.title || '' })
-
-        // AI 分类为"包包挂件"时自动设置 JIT 邀请码
-        if (catCode === 'BG') {
-          const st1 = useSorterStore.getState()
-          if (!st1.shopeeInfo.jitInvitationCode) {
-            st1.setShopeeInfo({ jitInvitationCode: 'IVCN202507240989' })
+          // 提取完整 SKU 对象（含中英文名）
+          const skuRe = /\{\s*"skuId"\s*:\s*"([^"]+)"\s*,\s*"skuName"\s*:\s*"([^"]+)"\s*,\s*"skuNameEn"\s*:\s*"([^"]+)"\s*\}/g
+          let match
+          while ((match = skuRe.exec(text)) !== null) {
+            const [, skuId, skuName, skuNameEn] = match
+            if (!this.filledSkuIds.has(skuId)) {
+              this.filledSkuIds.add(skuId)
+              const idx = list.findIndex((s) => s.imagePath.replace(/\\/g, '/') === skuId)
+              if (idx !== -1) {
+                const s3 = useSorterStore.getState()
+                s3.updateSkuItem(idx, { colorName: skuName, skuNameEn: skuNameEn || '', needAiName: false })
+                if (!firstSkuFilled) { setSuccessMessage('正在生成剩余 SKU 名称...'); firstSkuFilled = true }
+              }
+            }
           }
         }
       }
 
-      let skuSucceeded = 0
-      if (infoData.skus && Array.isArray(infoData.skus)) {
-        const s3 = useSorterStore.getState()
-        for (const aiSku of infoData.skus) {
-          if (!aiSku.skuId || !aiSku.skuName) continue
-          const targetIndex = s3.skuList.findIndex(
-            (s) => s.imagePath.replace(/\\/g, '/') === aiSku.skuId
-          )
-          if (targetIndex !== -1) {
-            s3.updateSkuItem(targetIndex, {
-              colorName: aiSku.skuName,
-              skuNameEn: (aiSku as Record<string, unknown>).skuNameEn as string || '',
-              needAiName: false,
-            })
-            skuSucceeded++
+      await new Promise<void>((resolve, reject) => {
+        window.electronAPI.onAiVisionStream(({ delta, done, error, data }) => {
+          if (error) {
+            window.electronAPI.offAiVisionStream()
+            setAiError(error)
+            setAiLoading(false)
+            setSuccessMessage(null)
+            resolve()
+            return
           }
-        }
-      }
+          if (done) {
+            window.electronAPI.offAiVisionStream()
+            // 完整 JSON 兜底：流式未能提取的字段用最终数据补充
+            if (data) {
+              finalBackfill(data, () => useSorterStore.getState().skuList)
+            }
+            setSuccessMessage(null)
+            setAiLoading(false)
+            resolve()
+            return
+          }
+          if (delta) {
+            parser.feed(delta)
+            if (!firstTitleFilled && parser.filled.title) {
+              firstTitleFilled = true
+            }
+          }
+        })
+      })
 
-      // 回填 Shopee 信息 (来自 AI 智能填表的合并返回)
-      if (infoData.shopee) {
-        const shopeeData = infoData.shopee as Record<string, unknown>
-        if (shopeeData.title) {
-          setShopeeInfo({ title: shopeeData.title as string })
-        }
-        if (shopeeData.descriptionText) {
-          setShopeeInfo({ descriptionText: shopeeData.descriptionText as string })
-        }
-        if (shopeeData.material) {
-          setShopeeAttributes({ material: shopeeData.material as string })
-        }
-      }
-
-      const needAiCount = list.filter((s) => s.needAiName).length
-      const skuFailed = needAiCount - skuSucceeded
-      if (skuFailed > 0 && needAiCount > 0) {
-        setAiError(`${skuSucceeded} 个 SKU 名称识别成功，${skuFailed} 个失败（可手动填写）`)
-      }
-
-      setSuccessMessage(null)
-    } catch (e) {
-      setAiError(`AI 调用异常：${(e as Error).message}`)
-      setSuccessMessage(null)
+    } catch (error) {
+      console.error('[AI填表] 执行出错:', error)
+      setAiError(error instanceof Error ? error.message : 'AI填表失败，请重试')
     } finally {
       setAiLoading(false)
     }

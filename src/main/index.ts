@@ -26,7 +26,7 @@ import {
   translateSkuBatch,
 } from './services/ai'
 import type { AiProviderConfig } from './services/ai/provider/doubaoProvider'
-import { clearImageCompressionCache } from './services/ai/utils/compressImage'
+import { clearImageCompressionCache, prepareImageBase64 } from './services/ai/utils/compressImage'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -74,6 +74,24 @@ function createWindow(): void {
     }
   })
 
+  // 缓存预热：后台静默预压缩所有图片
+  ipcMain.handle('preheat-image-cache', async (_event, imagePaths: string[]): Promise<{ preheated: number }> => {
+    const chunks: string[][] = []
+    for (let i = 0; i < imagePaths.length; i += 5) {
+      chunks.push(imagePaths.slice(i, i + 5))
+    }
+    let preheated = 0
+    for (const chunk of chunks) {
+      await Promise.all(
+        chunk.map((p) =>
+          prepareImageBase64(p).then(() => { preheated++ }).catch(() => {})
+        )
+      )
+    }
+    console.log(`[缓存预热] 完成 ${preheated}/${imagePaths.length} 张`)
+    return { preheated }
+  })
+
   // 读取文件 Base64
   ipcMain.handle('read-file-base64', async (_event, filePath: string): Promise<string> => {
     const data = await readFile(filePath)
@@ -90,20 +108,20 @@ function createWindow(): void {
     await saveConfig(config)
   })
 
-  // AI 视觉分析核心通道（主图分析 + SKU 命名 + 类目识别）
+  // AI 视觉分析核心通道（主图分析 + SKU 命名 + 类目识别 + Shopee 本地化）
   ipcMain.handle(
     'call-ai-vision',
     async (
       _event,
       payload: {
-        mainBase64List: string[];
-        skuBase64List: string[];
-        skuIds: string[];
-        existingNames?: string[];
-        productTitle?: string;
-        productCategory?: string;
-        originalFileNames?: string[];
-        folderName?: string;
+        mainImagePaths: string[]
+        skuImagePaths: string[]
+        skuIds: string[]
+        existingNames?: string[]
+        productTitle?: string
+        productCategory?: string
+        originalFileNames?: string[]
+        folderName?: string
         aiConfig?: { apiKey: string; baseUrl: string; model: string }
       }
     ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> => {
@@ -113,11 +131,27 @@ function createWindow(): void {
           return { success: false, error: 'AI 配置中未设置 API Key' }
         }
 
+        // 主进程统一处理所有图片（读取+Sharp压缩+缓存，并发执行）
+        const t = Date.now()
+        const stats = { hitCount: 0, missCount: 0 }
+        const [mainBase64List, skuBase64List] = await Promise.all([
+          Promise.all(payload.mainImagePaths.map((p) =>
+            prepareImageBase64(p, stats)
+          )),
+          Promise.all(payload.skuImagePaths.map((p) =>
+            prepareImageBase64(p, stats).catch(() => '')
+          )),
+        ])
+        console.log(
+          `[图片处理] 共 ${payload.mainImagePaths.length + payload.skuImagePaths.length} 张，` +
+          `耗时 ${Date.now() - t}ms，命中 ${stats.hitCount} 张，压缩 ${stats.missCount} 张`
+        )
+
         const contentParts: Array<Record<string, unknown>> = []
 
         // 主图
-        for (const b64 of payload.mainBase64List) {
-          contentParts.push({ type: 'image_url', image_url: { url: b64 } })
+        for (const b64 of mainBase64List) {
+          if (b64) contentParts.push({ type: 'image_url', image_url: { url: b64 } })
         }
 
         // 结构化上下文 (仅 push 一次, 在 SKU 循环之前)
@@ -182,9 +216,9 @@ ${payload.folderName ? `素材包文件夹: ${payload.folderName}\n` : ''}${payl
 
         // SKU 图：每张图前附加唯一 ID 文本标签
         const existing = payload.existingNames || []
-        for (let i = 0; i < payload.skuBase64List.length; i++) {
+        for (let i = 0; i < payload.skuIds.length; i++) {
           const skuId = (payload.skuIds[i] || `sku-${i}`).replace(/\\/g, '/')
-          const b64 = payload.skuBase64List[i]
+          const b64 = skuBase64List[i] || ''
           if (existing[i]) {
             // 中文名已确定，传图辅助翻译英文名
             if (b64) {
@@ -219,6 +253,7 @@ ${payload.folderName ? `素材包文件夹: ${payload.folderName}\n` : ''}${payl
             model: config.model,
             messages: [{ role: 'user', content: contentParts }],
             max_tokens: 2000,
+            stream: true,
           }),
         })
 
@@ -227,19 +262,61 @@ ${payload.folderName ? `素材包文件夹: ${payload.folderName}\n` : ''}${payl
           return { success: false, error: `AI 接口返回错误: ${res.status} ${errText}` }
         }
 
-        const data = await res.json()
-        const content = data.choices?.[0]?.message?.content || ''
-        const jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-
-        let parsed: Record<string, unknown>
-        try {
-          parsed = JSON.parse(jsonStr)
-        } catch (parseError) {
-          console.error('AI 返回的原始内容(JSON解析失败):', jsonStr.substring(0, 500))
-          return { success: false, error: `AI 返回数据格式异常: ${(parseError as Error).message}` }
+        // 流式读取并实时推送给渲染进程
+        const reader = res.body?.getReader()
+        if (!reader) {
+          return { success: false, error: 'AI 接口不支持流式响应' }
         }
 
-        return { success: true, data: parsed }
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let fullContent = ''
+
+        // 异步处理流式读取，不阻塞 handler 返回
+        ;(async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+
+              buffer += decoder.decode(value, { stream: true })
+              const lines = buffer.split('\n')
+              buffer = lines.pop() ?? ''
+
+              for (const line of lines) {
+                const trimmed = line.trim()
+                if (!trimmed.startsWith('data: ')) continue
+                const data = trimmed.slice(6)
+                if (data === '[DONE]') continue
+                try {
+                  const chunk = JSON.parse(data)
+                  const delta = chunk.choices?.[0]?.delta?.content
+                  if (delta) {
+                    fullContent += delta
+                    _event.sender.send('ai-vision-stream', { delta })
+                  }
+                } catch { /* 跳过解析失败的行 */ }
+              }
+            }
+          } catch (streamErr) {
+            console.error('[AI Stream] 流式读取异常:', streamErr)
+            _event.sender.send('ai-vision-stream', { error: (streamErr as Error).message, done: true })
+            return
+          }
+
+          // 流结束：发送完成信号 + 完整 JSON 供渲染进程兜底解析
+          const jsonStr = fullContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+          try {
+            const parsed = JSON.parse(jsonStr)
+            _event.sender.send('ai-vision-stream', { done: true, data: parsed })
+          } catch (parseError) {
+            console.error('AI 返回的原始内容(JSON解析失败):', jsonStr.substring(0, 500))
+            _event.sender.send('ai-vision-stream', { error: `AI 返回数据格式异常: ${(parseError as Error).message}`, done: true })
+          }
+        })()
+
+        // 流式模式下立即返回，流数据通过 ai-vision-stream 事件推送
+        return { success: true, streaming: true }
       } catch (error) {
         return { success: false, error: `AI 调用失败: ${(error as Error).message}` }
       }

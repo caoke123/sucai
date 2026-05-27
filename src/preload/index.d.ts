@@ -7,8 +7,8 @@ interface AiConfig {
 }
 
 interface CallAiVisionPayload {
-  mainBase64List: string[]
-  skuBase64List: string[]
+  mainImagePaths: string[]
+  skuImagePaths: string[]
   skuIds: string[]
   existingNames?: string[]
   productTitle?: string
@@ -95,6 +95,9 @@ declare global {
       onUploadQueueUpdate: (callback: (state: UploadQueueState) => void) => void
       offUploadQueueUpdate: (callback: (state: UploadQueueState) => void) => void
       clearImageCache: () => Promise<{ success: boolean; error?: string }>
+      preheatImageCache: (paths: string[]) => Promise<{ preheated: number }>
+      onAiVisionStream: (callback: (data: { delta?: string; done?: boolean; error?: string; data?: Record<string, unknown> }) => void) => void
+      offAiVisionStream: () => void
     }
     api: {
       db: {

@@ -8,8 +8,8 @@ interface AiConfig {
 }
 
 interface CallAiVisionPayload {
-  mainBase64List: string[]
-  skuBase64List: string[]
+  mainImagePaths: string[]
+  skuImagePaths: string[]
   skuIds: string[]
   existingNames?: string[]
   productTitle?: string
@@ -142,6 +142,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 清理主进程图片压缩缓存
   clearImageCache: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('clear-image-cache'),
+
+  // 缓存预热：后台静默预压缩所有图片
+  preheatImageCache: (paths: string[]): Promise<{ preheated: number }> =>
+    ipcRenderer.invoke('preheat-image-cache', paths),
+
+  // AI 流式返回事件
+  onAiVisionStream: (callback: (data: { delta?: string; done?: boolean; error?: string; data?: Record<string, unknown> }) => void): void => {
+    ipcRenderer.on('ai-vision-stream', (_event, data) => callback(data))
+  },
+  offAiVisionStream: (): void => {
+    ipcRenderer.removeAllListeners('ai-vision-stream')
+  },
 })
 
 // 数据库操作 API

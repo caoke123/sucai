@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSorterStore } from '../store/useSorterStore'
 import { LabelToolbar } from './LabelToolbar'
 import { ImageCard } from './ImageCard'
@@ -15,6 +15,14 @@ export function ImageGrid(): JSX.Element {
   } = useSorterStore()
 
   const [showConfirm, setShowConfirm] = useState(false)
+
+  // 缓存预热：进入图片标注页时在后台静默预压缩所有图片
+  useEffect(() => {
+    if (!window.electronAPI?.preheatImageCache) return
+    const allPaths = images.map((img) => img.originalPath).filter(Boolean)
+    if (allPaths.length === 0) return
+    window.electronAPI.preheatImageCache(allPaths).catch(() => {})
+  }, [images])
 
   const labeledCount = images.filter((i) => i.labels.some((l) => l !== '未分类')).length
   const totalCount = images.length
