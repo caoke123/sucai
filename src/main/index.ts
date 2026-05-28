@@ -212,16 +212,20 @@ shopee.material: 与material字段一致
   Vegan Leather,Zinc Alloy,Enamel,Rhinestone,Imitation Pearl,Beads,毛绒
 
 Shopee 热搜关键词（title中选≥3个，选与产品最相关的）：
-  bag charm / bag charms / bag accessories / keychain / keychains /
-  keychain cute / cute keychain / keychain for bag / bag keychain /
-  keychain accessories / keychain y2k / keychain cute for bag /
-  bag keychain accessories / bag keychain aesthetic / bag charms accessories /
-  handbag charm / key chain / key chain holder / bag charm accessories /
-  cherry keychain / cherry bag charm / cherry charm / cherry key chain /
-  croissant keychain / croissant bag charm / cat keychain / bunny keychain /
-  turtle keychain / snoopy keychain / snoopy accessories / snoopy /
-  bag accessories keychains and pins / accessories for bag /
-   palawit sa bag / keychain for bag aesthetic`,
+  handbag charm / croissant bag charm / y2k plush bunny keychain /
+  dice keychain / my melody keychain / pink keychain / bag designs accessories /
+  brown keychain for bag aesthetic / snoopy keychain plush / bunny keychain /
+  cute keychain / snoopy stuffed toy / palawit sa bag / keychain cute /
+  cinnamoroll / turtle stuffed toy / bag accessories / keychain accessories /
+  accessories for bag / bag accessories keychains and pins / bag keychain aesthetic /
+  chiikawa miniso / cherry bag charm / 8 ball keychain / bag chain accessories /
+  red bag charm / cherry keychain coach / bag keychain accessories /
+  keychain cute for bag / coach cherry charm / keychains / bag charms /
+  coach cherry keychain / cherry charm / key chain / bag keychain /
+  snoopy plushie / key chain holder / keychain cherry / bag charms accessories /
+  turtle keychain / keychain for bag / bag accessories charms / bag charm /
+  snoopy keychain / snoopy / keychain for bag aesthetic / cherry keychain /
+  keychain / cherry keychain for bag`,
         })
 
         // SKU 图：每张图前附加唯一 ID 文本标签
