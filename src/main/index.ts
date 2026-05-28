@@ -114,6 +114,75 @@ function createWindow(): void {
     await saveConfig(config)
   })
 
+  // AI 预分析：Step2 进入 Step3 前静默调用，仅传主图做基础识别
+  ipcMain.handle(
+    'call-ai-prefetch',
+    async (_event, payload: {
+      mainImagePath: string
+      folderName: string
+      originalFileNames: string[]
+      productTitle?: string
+      productCategory?: string
+      aiConfig?: { apiKey: string; baseUrl: string; model: string }
+    }): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> => {
+      try {
+        const config = payload.aiConfig?.apiKey ? payload.aiConfig : await getConfig()
+        if (!config.apiKey) return { success: false, error: '未配置 API Key' }
+
+        const mainB64 = await prepareImageBase64(payload.mainImagePath)
+
+        const prompt = `你是跨境电商选品专家。基于图片和文件夹信息快速完成基础信息识别。
+输出纯JSON（不带Markdown代码块）：
+
+素材包文件夹: ${payload.folderName || ''}
+${payload.productTitle ? `已有标题: ${payload.productTitle}\n` : ''}原始文件名: ${(payload.originalFileNames || []).slice(0, 5).join(', ')}
+
+[TASK 1] title: ≤60字中文标题 | shortTitle: ≤10字 |
+         category: 包包挂件/手机挂件/车内配饰/毛绒玩具 |
+         description: 2-3句中文卖点 | material: 从材质白名单选1个 |
+         pattern: 1-3个英文词Title Case
+
+[TASK 2] shopee.title: 纯英文120-160字符，
+         从以下关键词选3-5个最相关的自然融入：
+         bag charm / cute keychain / handbag charm / keychain for bag /
+         bag charms / keychains / bag accessories / cute keychain for bag
+
+输出格式：
+{"title":"...","shortTitle":"...","category":"...","description":"...",
+ "material":"...","pattern":"...",
+ "shopee":{"title":"..."}}`
+
+        const res = await fetch(`${config.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${config.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: config.model,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'image_url', image_url: { url: mainB64 } },
+                { type: 'text', text: prompt }
+              ]
+            }],
+            max_tokens: 800,
+          }),
+        })
+
+        if (!res.ok) return { success: false, error: `API错误: ${res.status}` }
+        const data = await res.json()
+        const raw = (data.choices?.[0]?.message?.content || '')
+          .replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+        const parsed = safeJsonParse(raw)
+        return { success: true, data: parsed }
+      } catch (err) {
+        return { success: false, error: (err as Error).message }
+      }
+    }
+  )
+
   // AI 视觉分析核心通道（主图分析 + SKU 命名 + 类目识别 + Shopee 本地化）
   ipcMain.handle(
     'call-ai-vision',
@@ -129,6 +198,7 @@ function createWindow(): void {
         originalFileNames?: string[]
         folderName?: string
         aiConfig?: { apiKey: string; baseUrl: string; model: string }
+        skipBasicInfo?: boolean
       }
     ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> => {
       try {
@@ -161,31 +231,37 @@ function createWindow(): void {
         }
 
         // 结构化上下文 (仅 push 一次, 在 SKU 循环之前)
-        contentParts.push({
-          type: 'text',
-          text: `[PRODUCT CONTEXT]
+        const skipBasic = payload.skipBasicInfo === true
+
+        const mainPrompt = `[PRODUCT CONTEXT]
 ${payload.folderName ? `素材包文件夹: ${payload.folderName}\n` : ''}${payload.productTitle ? `产品中文标题: ${payload.productTitle}\n` : ''}${payload.productCategory ? `产品类目: ${payload.productCategory}\n` : ''}${payload.originalFileNames && payload.originalFileNames.length > 0 ? `原始图片文件名:\n${payload.originalFileNames.map((f, i) => `  [${i}] ${f}`).join('\n')}\n` : ''}
 你是跨境电商选品专家。基于产品上下文和图片，一次完成以下任务，输出纯 JSON（不带Markdown代码块）。
-
-[TASK 1 - 基础信息]
+${skipBasic ? `[预分析已完成，基础信息已填写，只需完成 SKU 识别任务]
+` : `[TASK 1 - 基础信息]
 title: ≤60字中文标题 | shortTitle: ≤10字 | category: 包包挂件/手机挂件/车内配饰/毛绒玩具 | description: 2-3句中文卖点描述
 
 [TASK 2 - 属性识别]
 material: 从下方 [REFERENCE DATA] 材质列表中选1个最匹配的值，禁止自造
 pattern: 1-3个英文单词 Title Case，描述产品外观造型，非颜色。参考分类：外观形状(Heart/Star/Moon/Crown/Bow/Flower)、卡通IP(Cartoon/Animal/Bear/Cat/Bunny)、色彩(Solid Color/Color Block/Gradient/Plaid/Striped)、食物(Croissant/Cherry/Fruit/Candy)、其他(Geometric/Abstract/Letter/Number)
 
-[TASK 3 - SKU]
-每个SKU生成: skuName(2-10汉字，颜色/款式特征，各SKU不重复) + skuNameEn(2-5词Title Case，≤28字符)
-中文名已确定的SKU：skuName照用原值不修改，只生成skuNameEn。skus数组必须包含每个SKU，不遗漏。
-
 [TASK 4 - Shopee]
 shopee.title: 纯英文标题，严格120-160字符（含空格）。从 [REFERENCE DATA] 关键词列表中选3-5个与本产品最相关的词自然融入。不堆砌，读起来像真人写的爆款标题。输出前数字符，不在范围内就重写。
 shopee.descriptionText: 纯英文纯文本，六段结构[PRODUCT NAME]/[SPECIFICATIONS]/[USE SCENARIOS]/[DESCRIPTION]/[HOW TO USE]/[CARE INSTRUCTIONS]，每段标题全大写方括号，段间空一行，实事求是
 shopee.material: 与material字段一致
 
-{ "title":"...", "shortTitle":"...", "category":"...", "description":"...", "material":"...", "pattern":"...", "shopee":{"title":"...","descriptionText":"...","material":"..."}, "skus":[{"skuId":"路径/文件名.jpg","skuName":"茱萸粉毛球款","skuNameEn":"Rose Pink Charm"}] }
+`}[TASK 3 - SKU]
+每个SKU生成: skuName(2-10汉字，颜色/款式特征，各SKU不重复) + skuNameEn(2-5词Title Case，≤28字符)
+中文名已确定的SKU：skuName照用原值不修改，只生成skuNameEn。skus数组必须包含每个SKU，不遗漏。
 
- 输出前确认: shopee.title 字符数在120-160之间且含≥3个关键词; skuNameEn ≤28字符; skus无遗漏; material在材质列表中; 纯JSON无代码块`,
+${skipBasic ? `输出格式:
+{"skus":[{"skuId":"路径/文件名.jpg","skuName":"茱萸粉毛球款","skuNameEn":"Rose Pink Charm"}]}` : `输出格式:
+{ "title":"...", "shortTitle":"...", "category":"...", "description":"...", "material":"...", "pattern":"...", "shopee":{"title":"...","descriptionText":"...","material":"..."}, "skus":[{"skuId":"路径/文件名.jpg","skuName":"茱萸粉毛球款","skuNameEn":"Rose Pink Charm"}] }`}
+
+${skipBasic ? '输出前确认: skus无遗漏; 纯JSON无代码块' : '输出前确认: shopee.title 字符数在120-160之间且含≥3个关键词; skuNameEn ≤28字符; skus无遗漏; material在材质列表中; 纯JSON无代码块'}`
+
+        contentParts.push({
+          type: 'text',
+          text: mainPrompt,
         })
 
         // 追加参考数据区段（材质列表 + Shopee 关键词），与任务指令分离

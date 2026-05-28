@@ -495,6 +495,7 @@ export const useSorterStore = create<SorterStore>()(
           state.shortTitle = ''
           state.shopeeInfo = { ...defaultShopeeInfo }
           state.compress = { ...defaultCompress }
+          globalThis.__aiPrefetchResult = undefined
         }),
 
       // 仅清理当前产品数据（保留 counter 和 outputFolderPath）
@@ -515,6 +516,7 @@ export const useSorterStore = create<SorterStore>()(
           state.productCode = ''
           state.shopeeInfo = { ...defaultShopeeInfo }
           state.compress = { ...defaultCompress }
+          globalThis.__aiPrefetchResult = undefined
         }),
     })),
     {

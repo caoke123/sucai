@@ -42,6 +42,23 @@ export function ImageGrid(): JSX.Element {
       return
     }
     setStepError(null)
+
+    // 静默启动 AI 预分析：仅传主图做基础识别，后台执行不阻塞流程
+    const mainImage = images.find((img) => img.labels.includes('主图'))
+    if (mainImage && window.electronAPI?.callAiPrefetch) {
+      const sourceDirName = sourceFolderPath.split(/[\\/]/).pop() || ''
+      window.electronAPI.callAiPrefetch({
+        mainImagePath: mainImage.originalPath,
+        folderName: sourceDirName,
+        originalFileNames: images.map((i) => i.fileName),
+      }).then((result) => {
+        if (result.success && result.data) {
+          globalThis.__aiPrefetchResult = result.data
+          console.log('[Prefetch] 预分析完成:', (result.data as Record<string, unknown>).title)
+        }
+      }).catch(() => {})
+    }
+
     setStep('compress')
   }
 

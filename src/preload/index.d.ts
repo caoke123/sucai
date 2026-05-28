@@ -74,6 +74,10 @@ declare global {
       readFileBase64: (filePath: string) => Promise<string>
       getAiConfig: () => Promise<AiConfig>
       saveAiConfig: (config: AiConfig) => Promise<void>
+      callAiPrefetch: (payload: {
+        mainImagePath: string; folderName: string; originalFileNames: string[]
+        productTitle?: string; productCategory?: string; aiConfig?: AiConfig
+      }) => Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }>
       callAiVision: (payload: CallAiVisionPayload) => Promise<CallAiVisionResult>
       callSingleSkuVision: (payload: CallSingleSkuPayload) => Promise<{ success: boolean; specName?: string; error?: string }>
       callShopeeEnglish: (payload: CallShopeeEnglishPayload) => Promise<CallShopeeEnglishResult>

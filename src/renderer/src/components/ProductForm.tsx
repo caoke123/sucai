@@ -179,10 +179,11 @@ export function ProductForm(): JSX.Element {
     setSkuList(dedupedList)
   }, [images])
 
-  // 切换产品时清理主进程图片缓存
+  // 切换产品时清理主进程图片缓存和预分析结果
   useEffect(() => {
     if (productCode) {
       window.electronAPI?.clearImageCache()
+      globalThis.__aiPrefetchResult = undefined
     }
   }, [productCode])
 
@@ -286,8 +287,30 @@ export function ProductForm(): JSX.Element {
       setAiError('请先在图片标注步骤中标记至少一张主图')
       return
     }
+
+    // 消费预分析结果（Step2→Step3 后台静默获取）
+    const prefetched = globalThis.__aiPrefetchResult as Record<string, unknown> | undefined
+    if (prefetched) {
+      globalThis.__aiPrefetchResult = undefined
+      if (prefetched.title && typeof prefetched.title === 'string') setProductInfo({ title: prefetched.title })
+      if (prefetched.shortTitle && typeof prefetched.shortTitle === 'string') setShortTitle(prefetched.shortTitle)
+      if (prefetched.category && typeof prefetched.category === 'string') {
+        const catCode = getCategoryCode(prefetched.category)
+        updateSpu({ categoryCode: catCode, spuName: prefetched.category })
+        setProductInfo({ category: prefetched.category })
+      }
+      if (prefetched.description && typeof prefetched.description === 'string') setProductInfo({ description: prefetched.description })
+      if (prefetched.material && typeof prefetched.material === 'string') setProductInfo({ material: prefetched.material })
+      if (prefetched.pattern && typeof prefetched.pattern === 'string') setProductInfo({ pattern: prefetched.pattern })
+      if (prefetched.shopee) {
+        const sh = prefetched.shopee as Record<string, unknown>
+        if (sh.title && typeof sh.title === 'string') setShopeeInfo({ title: sh.title })
+      }
+    }
+
     setAiLoading(true)
     setAiError(null)
+    const hasPrefetch = !!prefetched
 
     try {
       const st = useSorterStore.getState()
@@ -326,6 +349,7 @@ export function ProductForm(): JSX.Element {
         originalFileNames: allOriginalNames,
         folderName: st.productCode ? `[${st.productCode}] ${st.shortTitle}_素材包` : undefined,
         aiConfig,
+        skipBasicInfo: hasPrefetch,
       })
 
       if (!streamResult.success) {

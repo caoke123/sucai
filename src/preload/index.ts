@@ -88,6 +88,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveAiConfig: (config: AiConfig): Promise<void> =>
     ipcRenderer.invoke('save-ai-config', config),
 
+  // AI 预分析（Step2→Step3 静默调用，仅主图）
+  callAiPrefetch: (payload: {
+    mainImagePath: string; folderName: string; originalFileNames: string[]
+    productTitle?: string; productCategory?: string; aiConfig?: AiConfig
+  }): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> =>
+    ipcRenderer.invoke('call-ai-prefetch', payload),
+
   // AI 视觉分析（主进程端调用火山引擎）
   callAiVision: (payload: CallAiVisionPayload): Promise<CallAiVisionResult> =>
     ipcRenderer.invoke('call-ai-vision', payload),
