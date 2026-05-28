@@ -1,46 +1,58 @@
+// ==================== PostgreSQL 连接池配置 ====================
+// 按 database_spec.md §7.1 规范实现
+
+import 'dotenv/config'
 import { Pool, PoolClient } from 'pg'
+import os from 'os'
 import type { DbConfig } from '@shared/types'
 
-let pool: Pool | null = null
+export const pool = new Pool({
+  host: process.env.DB_HOST || 'localhost',
+  port: Number(process.env.DB_PORT) || 5432,
+  database: process.env.DB_NAME || 'sorter',
+  user: process.env.DB_USER || 'sorter_user',
+  password: process.env.DB_PASSWORD || '',
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+})
 
-// 根据配置创建或更新连接池
+pool.on('error', (err) => {
+  console.error('[PG Pool] Idle connection error (handled):', err)
+})
+
+export const MACHINE_NAME = os.hostname()
+
+// 获取 Client（用于事务）
+export async function getClient(): Promise<PoolClient> {
+  return pool.connect()
+}
+
+// 兼容旧接口：根据配置创建或更新连接池
 export function createPool(config: DbConfig): Pool {
-  if (pool) {
-    pool.end().catch(() => {})
-  }
-  pool = new Pool({
-    host: config.host,
-    port: config.port,
-    user: config.user,
-    password: config.password,
-    database: config.database,
-    max: 10,
+  // 动态重建连接池（切换数据库配置时使用）
+  const newPool = new Pool({
+    host: config.host || process.env.DB_HOST || 'localhost',
+    port: config.port || Number(process.env.DB_PORT) || 5432,
+    user: config.user || process.env.DB_USER || 'sorter_user',
+    password: config.password || process.env.DB_PASSWORD || '',
+    database: config.database || process.env.DB_NAME || 'sorter',
+    max: 5,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
   })
-
-  // 拦截空闲连接意外断开导致的崩溃
-  pool.on('error', (err) => {
+  newPool.on('error', (err) => {
     console.error('[PG Pool] Idle connection error (handled):', err)
   })
-
-  return pool
+  return newPool
 }
 
-// 获取当前连接池（没有则抛出错误）
+// 兼容旧接口：获取当前连接池
 export function getPool(): Pool {
-  if (!pool) {
-    throw new Error('数据库未连接，请先配置并测试连接')
-  }
   return pool
 }
 
-// 获取一个 Client（用于事务）
-export async function getClient(): Promise<PoolClient> {
-  return getPool().connect()
-}
-
-// 使用临时连接池测试数据库连通性（不影响持久化池）
+// 使用临时连接池测试数据库连通性
 export async function testConnection(config: DbConfig): Promise<{ success: boolean; error?: string }> {
   const tempPool = new Pool({
     host: config.host,
@@ -74,8 +86,5 @@ export async function testConnection(config: DbConfig): Promise<{ success: boole
 
 // 关闭连接池
 export async function closePool(): Promise<void> {
-  if (pool) {
-    await pool.end()
-    pool = null
-  }
+  await pool.end()
 }

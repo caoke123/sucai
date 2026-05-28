@@ -110,6 +110,22 @@ declare global {
         savePackagingPreset: (preset: { id?: number; name: string; length: number; width: number; height: number; weight: number }) => Promise<{ success: boolean; data?: PackagingPreset; error?: string }>
         getNextSkuSeq: (prefix: string) => Promise<{ success: boolean; data?: string; error?: string }>
         saveSpuAndSkus: (spu: SpuData, skus: SkuItem[]) => Promise<{ success: boolean; error?: string }>
+        createSpu: (params: {
+          shortTitle: string; spuName: string; categoryCode: string; styleCode?: string; spuCode?: string
+          outerPackLength?: number; outerPackWidth?: number; outerPackHeight?: number; outerPackWeight?: number
+        }) => Promise<{ success: boolean; data?: { spuCode: string }; error?: string }>
+        getSpuCodePreview: (params: { categoryCode: string; shortTitle: string }) => Promise<{ success: boolean; data?: { spuCode: string }; error?: string }>
+        createSku: (params: {
+          spuCode: string; categoryCode: string; colorName: string; styleCode: string
+          indexInProduct: number; dimensions?: string; weight?: number; costPrice?: number; sellingPrice?: number
+        }) => Promise<{ success: boolean; data?: { skuCode: string }; error?: string }>
+        recordAsset: (params: {
+          spuCode: string; skuCode?: string; assetType: 'main_image' | 'sku_image' | 'detail_image' | 'video'
+          filePath: string; sortOrder?: number
+        }) => Promise<{ success: boolean; data?: { id: number }; error?: string }>
+        fetchPendingProducts: () => Promise<{ success: boolean; data?: Array<Record<string, unknown>>; error?: string }>
+        markAssetPublished: (assetId: number, shopeeItemId: string) => Promise<{ success: boolean; error?: string }>
+        markAssetFailed: (assetId: number, errorMessage: string) => Promise<{ success: boolean; error?: string }>
       }
     }
   }

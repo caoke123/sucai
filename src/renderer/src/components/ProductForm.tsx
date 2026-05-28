@@ -13,25 +13,16 @@ import { ShopeeInfoSection } from './step3/sections/ShopeeInfoSection'
 import { SkuTableSection } from './step3/sections/SkuTableSection'
 import { PackagingSection } from './step3/sections/PackagingSection'
 
-// 货源类目选项
 const CATEGORY_OPTIONS = Object.entries(CATEGORY_CODE_MAP).map(([name, code]) => ({ code, name }))
 
-// 根据颜色/风格名称模糊匹配风格编码
 const getStyleCode = (detectedStyleOrColor: string): string => {
   if (!detectedStyleOrColor) return 'MX'
-
   for (const [name, code] of Object.entries(STYLE_CODE_MAP)) {
-    if (detectedStyleOrColor.includes(name) || name.includes(detectedStyleOrColor)) {
-      return code
-    }
+    if (detectedStyleOrColor.includes(name) || name.includes(detectedStyleOrColor)) return code
   }
-
   for (const [key, code] of Object.entries(STYLE_KEYWORD_MAP)) {
-    if (detectedStyleOrColor.toLowerCase().includes(key)) {
-      return code
-    }
+    if (detectedStyleOrColor.toLowerCase().includes(key)) return code
   }
-
   return 'MX'
 }
 
@@ -41,7 +32,6 @@ const getCategoryCode = (categoryNameOrCode: string): string => {
   return CATEGORY_CODE_MAP[categoryNameOrCode] || 'XX'
 }
 
-// 无效名称黑名单（社交/截图/AI生成/临时文件等）
 function isInvalidFilename(name: string): boolean {
   if (!name) return true
   const lower = name.toLowerCase()
@@ -55,7 +45,6 @@ function isMeaninglessName(fileName: string): boolean {
   return MEANINGLESS_NAME_REGEX.some((regex) => regex.test(nameWithoutExt))
 }
 
-// SKU英文名截断保护：超过28字符时截到最后一个完整单词
 function truncateSkuNameEn(name: string): string {
   if (!name || name.length <= 28) return name || ''
   const truncated = name.slice(0, 28)
@@ -67,66 +56,13 @@ function extractSkuFromFilename(filename: string): string | null {
   const nameWithoutExt = filename.replace(/\.[^.]+$/, '')
   if (isInvalidFilename(nameWithoutExt)) return null
   if (isMeaninglessName(filename)) return null
-
   const cleaned = nameWithoutExt
-    .replace(/[_\-\s]*\d+$/, '')
-    .replace(/\(\d+\)$/, '')
-    .replace(/（\d+）$/, '')
-    .replace(/[_\-\s]+$/, '')
-    .replace(/\s+/g, '')
-    .trim()
-
+    .replace(/[_\-\s]*\d+$/, '').replace(/\(\d+\)$/, '').replace(/（\d+）$/, '')
+    .replace(/[_\-\s]+$/, '').replace(/\s+/g, '').trim()
   if (!cleaned || cleaned.length < 1) return null
   if (isInvalidFilename(cleaned)) return null
   return cleaned
 }
-
-const PINYIN_INITIALS: Record<string, string> = {
-  '色': 'S', '白': 'B', '黑': 'H', '红': 'H', '蓝': 'L', '绿': 'L', '黄': 'H', '紫': 'Z', '粉': 'F',
-  '灰': 'H', '银': 'Y', '棕': 'Z', '橙': 'C', '米': 'M', '咖': 'K', '花': 'H', '格': 'G',
-  '大': 'D', '中': 'Z', '小': 'X', '厚': 'H', '薄': 'B', '长': 'C', '短': 'D', '宽': 'K', '高': 'G',
-  '新': 'X', '款': 'K', '季': 'J', '春': 'C', '夏': 'X', '秋': 'Q', '冬': 'D', '男': 'N', '女': 'N',
-  '儿': 'E', '童': 'T', '宝': 'B', '家': 'J', '居': 'J', '用': 'Y', '品': 'P', '装': 'Z', '饰': 'S',
-  '材': 'C', '料': 'L', '棉': 'M', '麻': 'M', '丝': 'S', '毛': 'M', '皮': 'P', '革': 'G', '木': 'M',
-  '编': 'B', '织': 'Z', '纺': 'F', '手': 'S', '机': 'J', '电': 'D', '数': 'S', '码': 'M', '鞋': 'X',
-  '服': 'F', '帽': 'M', '包': 'B', '袋': 'D', '箱': 'X', '椅': 'Y', '桌': 'Z', '床': 'C', '柜': 'G',
-  '灯': 'D', '具': 'J', '文': 'W', '体': 'T', '运': 'Y', '动': 'D', '户': 'H', '外': 'W', '旅': 'L',
-  '行': 'X', '美': 'M', '容': 'R', '化': 'H', '妆': 'Z', '洗': 'X', '护': 'H', '食': 'S',
-  '饮': 'Y', '生': 'S', '鲜': 'X', '冷': 'L', '冻': 'D', '宠': 'C', '物': 'W', '园': 'Y',
-  '艺': 'Y', '工': 'G', '汽': 'Q', '车': 'C', '安': 'A', '防': 'F', '办': 'B', '公': 'G', '印': 'Y',
-  '刷': 'S', '纸': 'Z', '塑': 'S', '胶': 'J', '金': 'J', '属': 'S', '玻': 'B', '璃': 'L', '陶': 'T',
-  '瓷': 'C', '日': 'R', '货': 'H', '礼': 'L', '赠': 'Z', '促': 'C', '销': 'X', '定': 'D',
-  '制': 'Z', '挂': 'G', '绳': 'S', '链': 'L', '圈': 'Q', '环': 'H', '扣': 'K', '钩': 'G',
-  '贴': 'T', '牌': 'P', '卡': 'K', '珠': 'Z', '钻': 'Z', '钉': 'D', '线': 'X',
-  '带': 'D', '套': 'T', '壳': 'K', '罩': 'Z', '垫': 'D', '毯': 'T', '被': 'B', '枕': 'Z', '巾': 'J',
-  '浴': 'Y', '卫': 'W', '厨': 'C', '房': 'F', '餐': 'C', '锅': 'G', '碗': 'W', '筷': 'K', '勺': 'S',
-  '杯': 'B', '壶': 'H', '瓶': 'P', '罐': 'G', '盒': 'H', '篮': 'L', '架': 'J', '层': 'C',
-  '网': 'W', '筛': 'S', '笔': 'B', '刀': 'D', '剪': 'J', '尺': 'C', '针': 'Z', '钳': 'Q',
-  '质': 'Z', '量': 'Z', '价': 'J', '特': 'T', '惠': 'H', '批': 'P', '发': 'F', '零': 'L', '售': 'S',
-  '清': 'Q', '仓': 'C', '甩': 'S', '卖': 'M', '爆': 'B', '热': 'R', '潮': 'C', '流': 'L', '风': 'F',
-  '一': 'Y', '二': 'E', '三': 'S', '四': 'S', '五': 'W', '六': 'L', '七': 'Q', '八': 'B', '九': 'J',
-  '十': 'S', '千': 'Q', '万': 'W', '亿': 'Y',
-}
-
-function toPinyinInitials(text: string): string {
-  let result = ''
-  for (const char of text) {
-    if (/[a-zA-Z0-9]/.test(char)) {
-      result += char.toUpperCase()
-    } else if (PINYIN_INITIALS[char]) {
-      result += PINYIN_INITIALS[char]
-    }
-  }
-  return result
-}
-
-function generateProductCode(shortTitle: string, counter: number): string {
-  const initials = toPinyinInitials(shortTitle).slice(0, 4)
-  const numStr = String(counter).padStart(5, '0')
-  return `${initials}${numStr}`
-}
-
-// ==================== 主组件 ====================
 
 export function ProductForm(): JSX.Element {
   const {
@@ -134,7 +70,6 @@ export function ProductForm(): JSX.Element {
     images,
     shortTitle,
     productCode,
-    productCounter,
     aiConfig,
     skuList,
     currentSpu,
@@ -146,7 +81,6 @@ export function ProductForm(): JSX.Element {
     setProductInfo,
     setShortTitle,
     setProductCode,
-    incrementCounter,
     updateSkuInfo,
     setSkuList,
     updateSkuItem,
@@ -164,6 +98,7 @@ export function ProductForm(): JSX.Element {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [previewSpuCode, setPreviewSpuCode] = useState<string>('')
 
   // 批量填充栏本地状态
   const [batchLength, setBatchLength] = useState('')
@@ -262,6 +197,31 @@ export function ProductForm(): JSX.Element {
     }
   }, [productInfo.category])
 
+  // 短标题/类目变更 → 查询预估主编码预览（不消耗序列号）
+  useEffect(() => {
+    if (!shortTitle || !currentSpu?.categoryCode) {
+      setPreviewSpuCode('')
+      return
+    }
+    const doPreview = async (): Promise<void> => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const api = (window as any).api
+        if (!api?.db?.getSpuCodePreview) return
+        const res = await api.db.getSpuCodePreview({
+          categoryCode: currentSpu!.categoryCode,
+          shortTitle,
+        })
+        if (res.success && res.data) {
+          setPreviewSpuCode(res.data.spuCode)
+        }
+      } catch {
+        setPreviewSpuCode('')
+      }
+    }
+    doPreview()
+  }, [shortTitle, currentSpu?.categoryCode])
+
   // 类目/SKU颜色变更 → 重新计算所有 SKU 编码
   useEffect(() => {
     const st = useSorterStore.getState()
@@ -290,10 +250,6 @@ export function ProductForm(): JSX.Element {
     }
     if (data.shortTitle && typeof data.shortTitle === 'string') {
       setShortTitle(data.shortTitle)
-      const code = generateProductCode(data.shortTitle, s2.productCounter)
-      setProductCode(code)
-      setProductInfo({ productNo: code })
-      incrementCounter()
     }
     if (data.material && typeof data.material === 'string') setProductInfo({ material: data.material })
     if (data.pattern && typeof data.pattern === 'string') setProductInfo({ pattern: data.pattern })
@@ -699,21 +655,119 @@ export function ProductForm(): JSX.Element {
     }
     const hasEmptySkuCode = list.some((s) => !s.skuCode)
     if (hasEmptySkuCode) {
-      setValidationError('部分 SKU 编码未生成，请确保已选择货源类目')
+      setValidationError('请先确认 SKU 编码已生成')
       return
-    }
-
-    const allEmptySpecs = list.every(
-      (s) => !s.dimensions && !s.weight && !s.costPrice && !s.sellingPrice
-    )
-    if (allEmptySpecs) {
-      setSuccessMessage('已跳过规格与价格录入，可后续补充')
     }
 
     setValidationError(null)
     setSubmitLoading(true)
 
     try {
+      // ===== Step 1: 确保 SPU 编码存在 =====
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const api = (window as any).api
+      let currentSpuCode = st.productCode
+
+      if (st.shortTitle && api?.db?.createSpu) {
+        // 用户手动填写了产品编号则传递 spuCode，否则由后端序列生成
+        const manualCode = st.productInfo.productNo || st.productCode || undefined
+        const spuRes = await api.db.createSpu({
+          shortTitle: st.shortTitle,
+          spuName: st.productInfo.title || st.shortTitle,
+          categoryCode: spu.categoryCode,
+          styleCode: spu.styleCode,
+          spuCode: manualCode,
+          outerPackLength: spu.outerPackLength,
+          outerPackWidth: spu.outerPackWidth,
+          outerPackHeight: spu.outerPackHeight,
+          outerPackWeight: spu.outerPackWeight,
+        })
+        if (!spuRes.success || !spuRes.data) {
+          throw new Error(`[SPU] ${spuRes.error ?? '编码已存在或数据库异常'}`)
+        }
+        currentSpuCode = spuRes.data.spuCode
+        st.setProductCode(currentSpuCode)
+        st.setProductInfo({ productNo: currentSpuCode })
+      }
+
+      if (!currentSpuCode) {
+        currentSpuCode = st.productInfo.productNo || st.productCode
+      }
+      if (!currentSpuCode) {
+        throw new Error('[SPU] 产品编码未生成，请先完成 AI 智能填表')
+      }
+
+      // ===== Step 2: 逐条写入 SKU =====
+      if (api?.db?.createSku) {
+        for (let skuIdx = 0; skuIdx < list.length; skuIdx++) {
+          const sku = list[skuIdx]
+          const skuRes = await api.db.createSku({
+            spuCode: currentSpuCode,
+            categoryCode: spu.categoryCode,
+            colorName: sku.colorName,
+            styleCode: getStyleCode(sku.colorName),
+            indexInProduct: skuIdx + 1,
+            dimensions: sku.dimensions || undefined,
+            weight: sku.weight || undefined,
+            costPrice: sku.costPrice || undefined,
+            sellingPrice: sku.sellingPrice || undefined,
+          })
+          if (!skuRes.success) {
+            throw new Error(`[SKU] ${sku.colorName}: ${skuRes.error}`)
+          }
+        }
+      }
+
+      // ===== Step 3: 逐条写入素材记录 =====
+      if (api?.db?.recordAsset) {
+        // 建立 SKU 名称 → skuCode 的映射（用于 SKU图关联）
+        const skuNameToCode = new Map<string, string>()
+        for (let idx = 0; idx < list.length; idx++) {
+          const sku = list[idx]
+          if (sku.colorName) {
+            const code = [
+              currentSpuCode,
+              spu.categoryCode,
+              getStyleCode(sku.colorName),
+              String(idx + 1).padStart(4, '0'),
+            ].join('-')
+            skuNameToCode.set(sku.colorName, code)
+          }
+        }
+
+        const assetTypeMap: Record<string, 'main_image' | 'sku_image' | 'detail_image' | 'video'> = {
+          '主图': 'main_image',
+          'SKU图': 'sku_image',
+          '详情图': 'detail_image',
+          '尺寸图': 'detail_image',
+        }
+
+        for (const image of st.images) {
+          for (const label of image.labels) {
+            const assetType = assetTypeMap[label]
+            if (!assetType) continue
+
+            // SKU图关联对应的 skuCode
+            let associatedSkuCode: string | undefined
+            if (assetType === 'sku_image' && image.skuSpec) {
+              associatedSkuCode = skuNameToCode.get(image.skuSpec)
+            }
+
+            const assetRes = await api.db.recordAsset({
+              spuCode: currentSpuCode,
+              skuCode: associatedSkuCode,
+              assetType,
+              filePath: image.originalPath,
+              sortOrder: image.order ?? 0,
+            })
+            if (!assetRes.success) {
+              throw new Error(`[Asset] ${image.fileName}: ${assetRes.error}`)
+            }
+          }
+        }
+      }
+
+      // ===== Step 4: 物理导出素材包 =====
       if (window.electronAPI && outputFolderPath) {
         st.setLoading(true)
         try {
@@ -763,6 +817,7 @@ export function ProductForm(): JSX.Element {
           productInfo={productInfo}
           shortTitle={shortTitle}
           productCode={productCode}
+          previewSpuCode={previewSpuCode}
           currentSpu={currentSpu}
           aiLoading={aiLoading}
           aiError={aiError}

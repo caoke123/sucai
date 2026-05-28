@@ -38,11 +38,9 @@ interface SorterStore {
   shortTitle: string
   setShortTitle: (title: string) => void
 
-  // 产品主编号生成
+  // 产品主编号
   productCode: string
   setProductCode: (code: string) => void
-  productCounter: number
-  incrementCounter: () => void
 
   // AI 配置（豆包大模型默认参数，持久化存储）
   aiConfig: { apiKey: string; baseUrl: string; model: string }
@@ -99,7 +97,7 @@ interface SorterStore {
   // 重置所有状态
   reset: () => void
 
-  // 仅清理当前产品数据（保留 aiConfig 和 productCounter）
+  // 仅清理当前产品数据（保留 aiConfig）
   resetCurrentProduct: () => void
 
   // 图片压缩（步骤2.5）
@@ -287,11 +285,6 @@ export const useSorterStore = create<SorterStore>()(
       setProductCode: (code) =>
         set((state) => {
           state.productCode = code
-        }),
-      productCounter: 1,
-      incrementCounter: () =>
-        set((state) => {
-          state.productCounter += 1
         }),
 
       selectedImageIds: [],
@@ -527,10 +520,9 @@ export const useSorterStore = create<SorterStore>()(
     {
       name: 'material-sorter-storage',
       storage: createJSONStorage(() => localStorage),
-      // 持久化 outputFolderPath、productCounter 和 aiConfig
+      // 持久化 outputFolderPath 和 aiConfig
       partialize: (state) => ({
         outputFolderPath: state.outputFolderPath,
-        productCounter: state.productCounter,
         aiConfig: state.aiConfig,
       }),
     }

@@ -1,6 +1,6 @@
 // ==================== 工具版本 ====================
 // 与 package.json 保持同步，用于 product.json 的 toolVersion 字段
-export const TOOL_VERSION = '4.6.0'
+export const TOOL_VERSION = '4.8.0'
 
 // ==================== 标签 → 文件夹名称映射 ====================
 export const LABEL_TO_FOLDER: Record<string, string> = {

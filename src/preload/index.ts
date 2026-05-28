@@ -183,7 +183,37 @@ contextBridge.exposeInMainWorld('api', {
     getNextSkuSeq: (prefix: string): Promise<{ success: boolean; data?: string; error?: string }> =>
       ipcRenderer.invoke('db:get-next-sku-seq', prefix),
 
-    saveSpuAndSkus: (spu: SpuData, skus: SkuItem[]): Promise<{ success: boolean; error?: string }> =>
-      ipcRenderer.invoke('db:save-spu-and-skus', spu, skus),
-  }
+        saveSpuAndSkus: (spu: SpuData, skus: SkuItem[]): Promise<{ success: boolean; error?: string }> =>
+          ipcRenderer.invoke('db:save-spu-and-skus', spu, skus),
+
+        createSpu: (params: {
+          shortTitle: string; spuName: string; categoryCode: string; styleCode?: string; spuCode?: string
+          outerPackLength?: number; outerPackWidth?: number; outerPackHeight?: number; outerPackWeight?: number
+        }): Promise<{ success: boolean; data?: { spuCode: string }; error?: string }> =>
+          ipcRenderer.invoke('db:createSpu', params),
+
+        getSpuCodePreview: (params: { categoryCode: string; shortTitle: string }): Promise<{ success: boolean; data?: { spuCode: string }; error?: string }> =>
+          ipcRenderer.invoke('db:getSpuCodePreview', params),
+
+        createSku: (params: {
+          spuCode: string; categoryCode: string; colorName: string; styleCode: string
+          indexInProduct: number; dimensions?: string; weight?: number; costPrice?: number; sellingPrice?: number
+        }): Promise<{ success: boolean; data?: { skuCode: string }; error?: string }> =>
+          ipcRenderer.invoke('db:createSku', params),
+
+        recordAsset: (params: {
+          spuCode: string; skuCode?: string; assetType: 'main_image' | 'sku_image' | 'detail_image' | 'video'
+          filePath: string; sortOrder?: number
+        }): Promise<{ success: boolean; data?: { id: number }; error?: string }> =>
+          ipcRenderer.invoke('db:recordAsset', params),
+
+        fetchPendingProducts: (): Promise<{ success: boolean; data?: Array<Record<string, unknown>>; error?: string }> =>
+          ipcRenderer.invoke('db:fetchPendingProducts'),
+
+        markAssetPublished: (assetId: number, shopeeItemId: string): Promise<{ success: boolean; error?: string }> =>
+          ipcRenderer.invoke('db:markAssetPublished', { assetId, shopeeItemId }),
+
+        markAssetFailed: (assetId: number, errorMessage: string): Promise<{ success: boolean; error?: string }> =>
+          ipcRenderer.invoke('db:markAssetFailed', { assetId, errorMessage }),
+      }
 })

@@ -29,6 +29,7 @@ import type { AiProviderConfig } from './services/ai/provider/doubaoProvider'
 import { clearImageCompressionCache, prepareImageBase64 } from './services/ai/utils/compressImage'
 import { registerCompressImagesHandler, cleanupCompressTemp } from './ipc/compressImages'
 import { safeJsonParse } from '@shared/utils/safeJsonParse'
+import { pool } from './db'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -487,6 +488,11 @@ Shopee 热搜关键词（title中选≥3个，选与产品最相关的）：
 app.whenReady().then(() => {
   initAiConfig()
   initR2Config()
+
+  // 数据库连接测试
+  pool.query('SELECT 1')
+    .then(() => console.log('[DB] PostgreSQL database connected successfully!'))
+    .catch((err) => console.warn('[DB] Connection failed (offline mode):', err.message))
 
   electronApp.setAppUserModelId('com.material-sorter')
 

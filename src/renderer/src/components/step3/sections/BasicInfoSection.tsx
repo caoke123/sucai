@@ -4,6 +4,7 @@ interface BasicInfoSectionProps {
   productInfo: ProductInfo
   shortTitle: string
   productCode: string
+  previewSpuCode: string
   currentSpu: SpuData | null
   aiLoading: boolean
   aiError: string | null
@@ -19,6 +20,7 @@ export function BasicInfoSection({
   productInfo,
   shortTitle,
   productCode,
+  previewSpuCode,
   currentSpu,
   aiLoading,
   aiError,
@@ -29,6 +31,9 @@ export function BasicInfoSection({
   onUpdateSpu,
   onAiFill,
 }: BasicInfoSectionProps): JSX.Element {
+  const placeholderText = previewSpuCode
+    ? `预估: ${previewSpuCode}（保存时正式占用）`
+    : '自动生成或手动输入'
   return (
     <div className="bg-white rounded-lg border border-[var(--color-border)] p-6">
       <div className="flex items-center justify-between mb-4">
@@ -105,7 +110,7 @@ export function BasicInfoSection({
             type="text"
             value={productInfo.productNo}
             onChange={(e) => onSetProductInfo({ productNo: e.target.value })}
-            placeholder="自动生成或手动输入"
+            placeholder={placeholderText}
             className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm
                        focus:outline-none focus:border-[var(--color-primary)]
                        text-[var(--color-text-primary)] font-mono"
