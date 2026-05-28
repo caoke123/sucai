@@ -12,13 +12,14 @@ npm run dev
 ## 核心功能
 
 - **图片扫描与标注**: 文件夹扫描 → Sharp 缩略图 → 多标签标注 (主图/SKU图/详情图/尺寸图/证书)
-- **AI 智能填表**: 豆包 Doubao 视觉模型自动识别产品标题/类目/SKU名称
+- **图片压缩**: Sharp 压缩 (1000px / 2MB)，自动分析 + 一键处理
+- **AI 智能填表**: 豆包 Doubao 视觉模型自动识别产品标题/类目/SKU名称/材质/图案
 - **AI 英文生成**: 一键生成 Shopee 英文标题/描述/材质/SKU英文名
-- **SKU 编码**: 自动生成类目-风格-序号格式编码
+- **SKU 编码**: PostgreSQL `spu_seq` 序列生成全局唯一编码 `{spuCode}-{cat}-{style}-{seq}`
 - **素材包导出**: 标准化文件夹结构 + product.json v4
 - **R2 云端同步**: 自动上传队列 (并发5x + retry 3次) + CDN URL 回写
+- **数据库集成**: PostgreSQL 写入 SPU/SKU/Assets/PublishLogs + 发布程序 API
 - **发布前校验**: Shopee/SKU/图片 error/warning 分级
-- **版本迁移**: v1/v2/v3 → v4 自动补全
 
 ## 技术栈
 

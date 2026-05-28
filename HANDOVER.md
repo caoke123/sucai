@@ -14,11 +14,11 @@
 
 ### 当前完成度
 
-五步操作流程已全部打通：选择文件夹 → 图片标注 → AI 智能填表 → 确认输出 → 云端同步。支持独立 Electron 桌面模式和嵌入 PIM 中台模式（通过本地 Express Agent）。
+六步操作流程已全部打通：选择文件夹 → 图片标注 → 图片压缩(2.5) → AI 智能填表 → 确认输出 → 云端同步。SPU/SKU 编码由 PostgreSQL 数据库序列生成（全局唯一），离线模式下可降级为本地运行。
 
 ### 与 PIM 中台的关系
 
-本工具是上游：生成 product.json + 图片 → 上传至 R2 云存储 → PIM 中台读取 R2 数据并导入妙手 ERP。Excel 导入模板由 PIM 中台系统生成，本工具不涉及。
+本工具是上游：生成 product.json + 写入 PostgreSQL → 上传至 R2 云存储 → PIM 中台读取 R2/DB 数据并导入妙手 ERP。素材文件路径写入 `assets` 表（含 `machine_name`），Shopee 发布程序通过 `db:fetchPendingProducts` 按机器名拉取。Excel 导入模板由 PIM 中台系统生成，本工具不涉及。
 
 ---
 
@@ -69,20 +69,30 @@ pnpm dist
 ```
 src/
 ├── main/                          # Electron 主进程（Node.js 环境）
-│   ├── index.ts                   # ★ 核心入口：IPC handlers + AI 调用 + 缓存处理
+│   ├── index.ts                   # ★ 核心入口：IPC handlers + AI 调用 + 缓存 + DB连接测试
+│   ├── db.ts                      # ★ PostgreSQL 连接池 (Pool + MACHINE_NAME + dotenv)
 │   ├── ipc/
 │   │   ├── organizeFiles.ts       # 物理归档 IPC
 │   │   ├── scanFolder.ts          # 文件夹扫描 + sharp 缩略图生成
 │   │   ├── selectDirectory.ts     # 系统文件夹选择对话框
 │   │   ├── uploadQueue.ts         # R2 上传队列管理
 │   │   ├── r2Config.ts            # R2 配置读写（electron-store）
-│   │   └── dbHandlers.ts          # 本地数据库操作（纸箱预设等）
+│   │   ├── compressImages.ts      # ★ 步骤2.5 图片压缩 IPC + analyze
+│   │   └── dbHandlers.ts          # ★ SPU/SKU/Asset 编码生成 + 发布API
 │   └── services/
 │       ├── ai/
 │       │   ├── index.ts           # AI Service Layer（doubaoProvider）
 │       │   ├── provider/          # API 调用封装
 │       │   └── utils/compressImage.ts  # Sharp 图片压缩 + 缓存
+│       ├── compress/
+│       │   └── compressForExport.ts    # ★ 导出前压缩 (1000px/2MB, quality 85→60)
 │       ├── config/                # AI 配置文件读写
+│       ├── export/
+│       │   ├── buildProductJson.ts      # product.json 构建入口
+│       │   ├── buildAssetManifest.ts    # 素材清单生成
+│       │   ├── generateFolderStructure.ts # 创建文件夹骨架
+│       │   ├── renameImages.ts          # 图片重命名与复制（优先使用压缩后路径）
+│       │   └── versioning/exportV4.ts   # product.json 输出结构定义
 │       ├── export/
 │       │   ├── buildProductJson.ts      # product.json 构建入口
 │       │   ├── buildAssetManifest.ts    # 素材清单生成
@@ -131,13 +141,14 @@ src/
 
 ## 四、核心功能说明
 
-### 4.1 五步操作流程
+### 4.1 六步操作流程
 
 | 步骤 | 组件 | 做什么 |
 |------|------|--------|
-| 1 | FolderPicker | 选择源文件夹（含产品图片）+ 输出位置 → 扫描图片生成缩略图 |
+| 1 | FolderPicker | 选择源文件夹 + 输出位置 → 扫描图片生成缩略图 |
 | 2 | ImageGrid | 标注图片类型（主图/SKU图/详情图/尺寸图/证书），主图需 6-9 张 |
-| 3 | ProductForm | AI 智能填表 + 手动编辑产品信息、SKU 规格、Shopee 发布内容 |
+| 2.5 | CompressStep | 图片压缩：自动分析需压缩图片 → Sharp 压缩(1000px/2MB) → 点击开始 |
+| 3 | ProductForm | AI 智能填表 + 手动编辑产品信息、SKU 规格、Shopee 发布内容 + 保存时写入数据库 |
 | 4 | PreviewPanel | 预览即将导出的数据结构和图片清单，确认后提交 |
 | 5 | OutputResult | 显示导出结果，可打开文件夹或处理下一个产品 |
 
@@ -167,6 +178,22 @@ src/
 ### 4.4 导出的 product.json
 
 导出到素材包根目录，包含完整的产品信息（标题/描述/SKU 列表/Shopee 平台数据/R2 同步状态）。核心数据结构见 `SORTER_API_DOC.md`。
+
+### 4.5 PostgreSQL 数据库（v4.8 新增）
+
+**编码生成：**
+- SPU 编码：`{拼音首字母}{年月日}-{4位DB序列号}`，由 `SELECT NEXTVAL('spu_seq')` 原子分配
+- SKU 编码：`{spuCode}-{类目码}-{风格码}-{4位组内序号}`，以 SPU 编码为前缀保证全局唯一
+- 前端已移除 `productCounter` / `incrementCounter`（不再依赖 localStorage）
+
+**链式保存事务：**
+```
+createSpu (ON CONFLICT DO NOTHING) → createSku × N → recordAsset × N → organizeFiles
+```
+
+**发布程序 API：** `db:fetchPendingProducts` / `db:markAssetPublished` / `db:markAssetFailed`
+
+**连接配置：** `.env` 文件中配置 `DB_HOST/PORT/NAME/USER/PASSWORD`，由 `dotenv` 自动加载。`src/main/db.ts` 管理 Pool + 导出 `MACHINE_NAME`。
 
 ---
 
