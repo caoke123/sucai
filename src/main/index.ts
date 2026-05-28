@@ -179,28 +179,13 @@ pattern: 1-3个英文单词 Title Case，描述产品外观造型，非颜色。
 中文名已确定的SKU：skuName照用原值不修改，只生成skuNameEn。skus数组必须包含每个SKU，不遗漏。
 
 [TASK 4 - Shopee]
-shopee.title 生成规则，按以下三步执行：
-
-STEP 1 - 选词：从 [REFERENCE DATA] 关键词列表中，挑选 5-8 个与本产品最相关的词组（根据产品材质、造型、用途匹配）。不相关的词坚决不选，宁少勿滥。
-
-STEP 2 - 写标题：用选出的词写标题，要求：
-1. 自然融入至少 3 个选出的词组，不堆砌
-2. 每个实词（名词/形容词）在标题中只出现一次，同词根变体也算重复（如 accessory/accessories、keychain/keychains、charm/charms 视为同一词）
-3. 读起来像真人顶级卖家写的爆款标题，流畅自然
-4. 字符总长度（含空格）严格在 120-160 之间，输出前自己数一遍确认
-5. 不得出现引号、引导语、Markdown 格式
-
-STEP 3 - 自检：输出前确认以下三项全部通过：
-① 已融入的选出词组数量 ≥ 3
-② 无任何实词重复（含同词根变体）
-③ 字符数在 120-160 之间
-三项全过才输出，否则重写。
+shopee.title: 纯英文标题，严格120-160字符（含空格）。从 [REFERENCE DATA] 关键词列表中选3-5个与本产品最相关的词自然融入。不堆砌，读起来像真人写的爆款标题。输出前数字符，不在范围内就重写。
 shopee.descriptionText: 纯英文纯文本，六段结构[PRODUCT NAME]/[SPECIFICATIONS]/[USE SCENARIOS]/[DESCRIPTION]/[HOW TO USE]/[CARE INSTRUCTIONS]，每段标题全大写方括号，段间空一行，实事求是
 shopee.material: 与material字段一致
 
 { "title":"...", "shortTitle":"...", "category":"...", "description":"...", "material":"...", "pattern":"...", "shopee":{"title":"...","descriptionText":"...","material":"..."}, "skus":[{"skuId":"路径/文件名.jpg","skuName":"茱萸粉毛球款","skuNameEn":"Rose Pink Charm"}] }
 
- 输出前确认: shopee.title 已完成三步自检(选词≥3个+无重复实词+120-160字符); skuNameEn ≤28字符; skus无遗漏; material必须在材质列表中; 纯JSON无代码块`,
+ 输出前确认: shopee.title 字符数在120-160之间且含≥3个关键词; skuNameEn ≤28字符; skus无遗漏; material在材质列表中; 纯JSON无代码块`,
         })
 
         // 追加参考数据区段（材质列表 + Shopee 关键词），与任务指令分离
