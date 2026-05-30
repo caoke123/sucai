@@ -11,5 +11,5 @@ export const DEFAULT_R2_CONFIG_TEMPLATE = {
 export const DEFAULT_AI_CONFIG_TEMPLATE = {
   apiKey: '',
   baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-  model: 'doubao-seed-1-6-flash-250828',
+  model: 'doubao-seed-2-0-mini-260428',
 }

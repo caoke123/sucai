@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState, CompressResult } from '@shared/types'
+import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState, CompressResult, ProductOutput } from '@shared/types'
 
 interface AiConfig {
   apiKey: string
@@ -222,5 +222,8 @@ contextBridge.exposeInMainWorld('api', {
 
         markAssetFailed: (assetId: number, errorMessage: string): Promise<{ success: boolean; error?: string }> =>
           ipcRenderer.invoke('db:markAssetFailed', { assetId, errorMessage }),
+
+        syncPimProduct: (product: ProductOutput): Promise<{ success: boolean; error?: string }> =>
+          ipcRenderer.invoke('db:sync-pim-product', product),
       }
 })

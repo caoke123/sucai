@@ -1,33 +1,7 @@
 import { ipcMain } from 'electron'
 import { pool, MACHINE_NAME, createPool, testConnection, getPool, getClient } from '../db'
-import type { DbConfig, PackagingPreset, SpuData, SkuItem } from '@shared/types'
-
-// ==================== SPU 编码生成工具 ====================
-
-const PINYIN_INITIALS: Record<string, string> = {
-  '衣': 'Y', '裤': 'K', '鞋': 'X', '袜': 'W', '帽': 'M', '包': 'B',
-  '饰': 'S', '配': 'P', '针': 'Z', '织': 'Z', '纺': 'F',
-  '玻': 'B', '璃': 'L', '纸': 'Z', '石': 'S', '钻': 'Z', '珠': 'Z', '玉': 'Y',
-  '编': 'B', '绣': 'X', '蕾': 'L', '丝': 'S',
-  '手': 'S', '机': 'J', '电': 'D', '车': 'C', '安': 'A', '汽': 'Q',
-  '美': 'M', '妆': 'Z', '化': 'H', '护': 'H', '香': 'X', '洗': 'X',
-  '家': 'J', '居': 'J', '厨': 'C', '卫': 'W', '办': 'B', '公': 'G',
-  '运': 'Y', '动': 'D', '户': 'H', '外': 'W', '旅': 'L', '行': 'X',
-  '宠': 'C', '物': 'W', '食': 'S', '饮': 'Y', '园': 'Y', '艺': 'Y',
-  '礼': 'L', '品': 'P', '卡': 'K', '贴': 'T', '牌': 'P', '扣': 'K', '钩': 'G', '链': 'L'
-}
-
-function toPinyinInitials(text: string): string {
-  let result = ''
-  for (const char of text) {
-    if (/[a-zA-Z0-9]/.test(char)) {
-      result += char.toUpperCase()
-    } else if (PINYIN_INITIALS[char]) {
-      result += PINYIN_INITIALS[char]
-    }
-  }
-  return result
-}
+import type { DbConfig, PackagingPreset, SpuData, SkuItem, ProductOutput } from '@shared/types'
+import { syncProductToPIM } from '../services/pim/syncProductToPIM'
 
 export function registerDbHandlers(): void {
   // 测试数据库连接
@@ -122,8 +96,7 @@ export function registerDbHandlers(): void {
     ): Promise<{ success: boolean; data?: { spuCode: string }; error?: string }> => {
       try {
         const dateStr = new Date().toISOString().slice(2, 8).replace(/-/g, '')
-        const initials = toPinyinInitials(params.shortTitle).slice(0, 4).toUpperCase()
-        const prefix = `${initials}${dateStr}-`
+        const prefix = `SP${dateStr}`
 
         // 只读查询：找当前前缀下最大的编号
         const { rows } = await pool.query(
@@ -136,13 +109,14 @@ export function registerDbHandlers(): void {
         let nextSeq = 1
         if (rows.length > 0) {
           const lastCode = rows[0].spu_code as string
-          const match = lastCode.match(/-(\d+)$/)
+          // 格式 SP26053001 → 后缀是最后2位数字
+          const match = lastCode.match(/(\d{3})$/)
           if (match) {
             nextSeq = parseInt(match[1], 10) + 1
           }
         }
 
-        const previewCode = `${prefix}${String(nextSeq).padStart(4, '0')}`
+        const previewCode = `${prefix}${String(nextSeq).padStart(3, '0')}`
         return { success: true, data: { spuCode: previewCode } }
       } catch (err) {
         return { success: false, error: (err as Error).message }
@@ -187,10 +161,9 @@ export function registerDbHandlers(): void {
           finalCode = params.spuCode
         } else {
           const seqRes = await client.query("SELECT NEXTVAL('spu_seq') AS seq")
-          const seq = String(seqRes.rows[0].seq).padStart(4, '0')
+          const seq = String(seqRes.rows[0].seq).padStart(3, '0')
           const dateStr = new Date().toISOString().slice(2, 8).replace(/-/g, '')
-          const initials = toPinyinInitials(params.shortTitle).slice(0, 4).toUpperCase()
-          finalCode = `${initials}${dateStr}-${seq}`
+          finalCode = `SP${dateStr}${seq}`
         }
 
         // 写入数据库（冲突时报错，不静默覆盖）
@@ -204,8 +177,8 @@ export function registerDbHandlers(): void {
            RETURNING spu_code`,
           [
             finalCode, params.spuName, params.shortTitle, params.categoryCode, params.styleCode ?? null,
-            params.outerPackLength ?? null, params.outerPackWidth ?? null,
-            params.outerPackHeight ?? null, params.outerPackWeight ?? null,
+            params.outerPackLength || null, params.outerPackWidth || null,
+            params.outerPackHeight || null, params.outerPackWeight || null,
             MACHINE_NAME,
           ]
         )
@@ -492,6 +465,33 @@ export function registerDbHandlers(): void {
         return { success: true }
       } catch (err) {
         await client.query('ROLLBACK').catch(() => {})
+        return { success: false, error: (err as Error).message }
+      } finally {
+        client.release()
+      }
+    }
+  )
+
+  // ==================== PIM 中台同步 API ====================
+
+  // 将产品数据写入 PIM 专用表 (products / product_skus)
+  // 调用时机：分拣系统写完 spus/skus/assets 之后
+  // 内部 try/catch 保证 PIM 写入失败不影响分拣主流程
+  ipcMain.handle(
+    'db:sync-pim-product',
+    async (
+      _event,
+      product: ProductOutput
+    ): Promise<{ success: boolean; error?: string }> => {
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        await syncProductToPIM(product, client)
+        await client.query('COMMIT')
+        return { success: true }
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {})
+        console.error('[PIM同步失败]', product.productNo, err)
         return { success: false, error: (err as Error).message }
       } finally {
         client.release()

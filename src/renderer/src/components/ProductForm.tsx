@@ -266,9 +266,25 @@ export function ProductForm(): JSX.Element {
       for (const aiSku of data.skus) {
         const s = aiSku as Record<string, unknown>
         if (!s.skuId || !s.skuName) continue
-        const targetIndex = currentList.findIndex(
-          (item) => item.imagePath.replace(/\\/g, '/') === s.skuId
+        const normalizedId = String(s.skuId).replace(/\\/g, '/')
+        let targetIndex = currentList.findIndex(
+          (item) => item.imagePath.replace(/\\/g, '/') === normalizedId
         )
+        // 兜底：按文件名匹配（模型可能改变路径格式）
+        if (targetIndex === -1) {
+          const fileName = normalizedId.split('/').pop()?.split('?')[0] ?? ''
+          targetIndex = currentList.findIndex(
+            (item) => item.imagePath.replace(/\\/g, '/').endsWith(fileName)
+          )
+        }
+        // 末级兜底：按 SKU 数组位置匹配（模型编造了 skuId 但顺序保真）
+        if (targetIndex === -1) {
+          const skuArray = data.skus as Array<Record<string, unknown>>
+          const posIndex = skuArray.findIndex((x) => x.skuId === s.skuId)
+          if (posIndex >= 0 && posIndex < currentList.length) {
+            targetIndex = posIndex
+          }
+        }
         if (targetIndex !== -1) {
           s3.updateSkuItem(targetIndex, {
             colorName: s.skuName as string,
@@ -417,17 +433,27 @@ export function ProductForm(): JSX.Element {
             if (m) { setProductInfo({ pattern: m[1] }); this.filled.pattern = true }
           }
 
-          // 提取完整 SKU 对象（含中英文名）
-          const skuRe = /\{\s*"skuId"\s*:\s*"([^"]+)"\s*,\s*"skuName"\s*:\s*"([^"]+)"\s*,\s*"skuNameEn"\s*:\s*"([^"]+)"\s*\}/g
+          // 提取完整 SKU 对象（含中英文名）—— 容错模式：逐字段提取，不要求固定顺序
+          const skuBlockRe = /\{[^}]*"skuId"\s*:\s*"([^"]+)"[^}]*\}/g
           let match
-          while ((match = skuRe.exec(text)) !== null) {
-            const [, skuId, skuName, skuNameEn] = match
+          while ((match = skuBlockRe.exec(text)) !== null) {
+            const block = match[0]
+            const skuId = match[1]
             if (!this.filledSkuIds.has(skuId)) {
+              const nameMatch = block.match(/"skuName"\s*:\s*"([^"]+)"/)
+              const enMatch = block.match(/"skuNameEn"\s*:\s*"([^"]+)"/)
+              if (!nameMatch) continue
               this.filledSkuIds.add(skuId)
-              const idx = list.findIndex((s) => s.imagePath.replace(/\\/g, '/') === skuId)
+              const normalizedId = skuId.replace(/\\/g, '/')
+              let idx = list.findIndex((s) => s.imagePath.replace(/\\/g, '/') === normalizedId)
+              // 兜底：按文件名匹配
+              if (idx === -1) {
+                const fileName = normalizedId.split('/').pop()?.split('?')[0] ?? ''
+                idx = list.findIndex((s) => s.imagePath.replace(/\\/g, '/').endsWith(fileName))
+              }
               if (idx !== -1) {
                 const s3 = useSorterStore.getState()
-                s3.updateSkuItem(idx, { colorName: skuName, skuNameEn: truncateSkuNameEn(skuNameEn || ''), needAiName: false })
+                s3.updateSkuItem(idx, { colorName: nameMatch[1], skuNameEn: truncateSkuNameEn(enMatch?.[1] || ''), needAiName: false })
                 if (!firstSkuFilled) { setSuccessMessage('正在生成剩余 SKU 名称...'); firstSkuFilled = true }
               }
             }
@@ -692,7 +718,7 @@ export function ProductForm(): JSX.Element {
       const api = (window as any).api
       let currentSpuCode = st.productCode
 
-      if (st.shortTitle && api?.db?.createSpu) {
+      if (api?.db?.createSpu && (st.shortTitle || st.productInfo.title)) {
         // 用户手动填写了产品编号则传递 spuCode，否则由后端序列生成
         const manualCode = st.productInfo.productNo || st.productCode || undefined
         const spuRes = await api.db.createSpu({
@@ -711,11 +737,14 @@ export function ProductForm(): JSX.Element {
         }
         currentSpuCode = spuRes.data.spuCode
         st.setProductCode(currentSpuCode)
-        st.setProductInfo({ productNo: currentSpuCode })
       }
 
       if (!currentSpuCode) {
         currentSpuCode = st.productInfo.productNo || st.productCode
+      }
+      // 确保 productInfo.productNo 始终与当前 SPU 编码同步
+      if (currentSpuCode) {
+        st.setProductInfo({ productNo: currentSpuCode })
       }
       if (!currentSpuCode) {
         throw new Error('[SPU] 产品编码未生成，请先完成 AI 智能填表')

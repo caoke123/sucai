@@ -72,6 +72,7 @@ export interface OrganizeRequest {
 export interface OrganizeResult {
   success: boolean
   outputPath?: string
+  productData?: ProductOutput
   error?: string
 }
 

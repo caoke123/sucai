@@ -25,29 +25,5 @@ export function validateSkuRules(ctx: ValidationContext): ValidationIssue[] {
     }
   })
 
-  // 每个 SKU 售价 > 0
-  const noPrice = skus.filter((s) => !s.sellingPrice || s.sellingPrice <= 0)
-  if (noPrice.length > 0) {
-    const names = noPrice.map((_, i) => {
-      const idx = skus.indexOf(noPrice[0]) + i
-      return `第 ${idx + 1} 个`
-    }).join('、')
-    issues.push({
-      field: 'skus.sellingPrice',
-      level: 'error',
-      message: `${noPrice.length} 个 SKU 售价未填写或 ≤0`,
-    })
-  }
-
-  // 每个 SKU 库存 > 0
-  const noStock = skus.filter((s) => !s.stock || s.stock <= 0)
-  if (noStock.length > 0) {
-    issues.push({
-      field: 'skus.stock',
-      level: 'error',
-      message: `${noStock.length} 个 SKU 库存未填写或 ≤0`,
-    })
-  }
-
   return issues
 }

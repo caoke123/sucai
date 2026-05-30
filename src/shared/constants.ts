@@ -71,7 +71,7 @@ export const STYLE_KEYWORD_MAP: Record<string, string> = {
 export const DEFAULT_AI_CONFIG = {
   apiKey: '',
   baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-  model: 'doubao-seed-1-6-flash-250828',
+  model: 'doubao-seed-2-0-mini-260428',
 }
 
 // ==================== v4 Shopee 默认值 ====================

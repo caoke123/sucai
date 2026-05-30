@@ -1,4 +1,4 @@
-import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState, CompressResult } from '@shared/types'
+import type { ScanFolderResult, OrganizeRequest, OrganizeResult, DbConfig, PackagingPreset, SpuData, SkuItem, R2Config, UploadTask, UploadQueueState, CompressResult, ProductOutput } from '@shared/types'
 
 interface AiConfig {
   apiKey: string
@@ -130,6 +130,7 @@ declare global {
         fetchPendingProducts: () => Promise<{ success: boolean; data?: Array<Record<string, unknown>>; error?: string }>
         markAssetPublished: (assetId: number, shopeeItemId: string) => Promise<{ success: boolean; error?: string }>
         markAssetFailed: (assetId: number, errorMessage: string) => Promise<{ success: boolean; error?: string }>
+        syncPimProduct: (product: ProductOutput) => Promise<{ success: boolean; error?: string }>
       }
     }
   }

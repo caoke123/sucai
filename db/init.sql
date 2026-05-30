@@ -93,9 +93,65 @@ CREATE TABLE IF NOT EXISTS public.publish_logs (
 CREATE INDEX IF NOT EXISTS idx_publish_logs_spu_code ON public.publish_logs(spu_code);
 CREATE INDEX IF NOT EXISTS idx_publish_logs_result   ON public.publish_logs(result);
 
--- 9. 授权
+-- 9. 授权（原始表）
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES    IN SCHEMA public TO sorter_user;
 GRANT USAGE, SELECT                  ON ALL SEQUENCES IN SCHEMA public TO sorter_user;
+
+-- ============================================================
+-- 10. PIM 中台同步表（分拣系统写入，运营后续维护）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.products (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  spu_code            VARCHAR(100) NOT NULL UNIQUE,
+  title               TEXT NOT NULL,
+  description         TEXT,
+  category            VARCHAR(100),
+  local_path          TEXT,
+  shopee_title_en     TEXT,
+  shopee_title_zh     TEXT,
+  shopee_desc_en      TEXT,
+  shopee_desc_zh      TEXT,
+  platforms_json      JSONB,
+  images_json         JSONB,
+  main_image_url      TEXT,
+  r2_base_path        TEXT,
+  r2_synced_at        TIMESTAMPTZ,
+  tool_version        VARCHAR(20),
+  status              VARCHAR(20) NOT NULL DEFAULT 'pending',
+  pim_notes           TEXT,
+  is_deleted          BOOLEAN DEFAULT FALSE,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_products_spu_code ON public.products(spu_code);
+CREATE INDEX IF NOT EXISTS idx_products_status ON public.products(status);
+
+CREATE TABLE IF NOT EXISTS public.product_skus (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  spu_code        VARCHAR(100) NOT NULL REFERENCES public.products(spu_code) ON DELETE CASCADE,
+  sku_code        VARCHAR(100) NOT NULL UNIQUE,
+  name_zh         VARCHAR(200),
+  name_en         VARCHAR(200),
+  name_zh_custom  VARCHAR(200),
+  name_en_custom  VARCHAR(200),
+  weight_g        NUMERIC(10,2),
+  size_json       JSONB,
+  cost_price      NUMERIC(10,2),
+  selling_price   NUMERIC(10,2),
+  stock           INTEGER DEFAULT 0,
+  image_url       TEXT,
+  sort_order      INTEGER DEFAULT 0,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_product_skus_spu_code ON public.product_skus(spu_code);
+
+-- PIM 表授权
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.products      TO sorter_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_skus  TO sorter_user;
+GRANT SELECT, INSERT, UPDATE         ON public.products      TO pim_user;
+GRANT SELECT, INSERT, UPDATE         ON public.product_skus  TO pim_user;
 
 -- ============================================================
 -- 初始化完成

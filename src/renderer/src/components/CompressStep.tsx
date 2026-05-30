@@ -135,8 +135,6 @@ export function CompressStep(): JSX.Element {
 
   // 状态判定
   const done = compress.status === 'done' && Object.keys(compress.results).length > 0
-  const isProcessing = analyzing || compressing
-  const progressPercent = done ? 100 : Math.round(compress.progress * 100)
 
   if (analyzing) {
     return (
@@ -163,14 +161,14 @@ export function CompressStep(): JSX.Element {
           </p>
         </div>
 
-        {/* 右上角下一步按钮 */}
+        {/* 右上角多态按钮 */}
         <div>
           {done ? (
             <button
               onClick={handleNext}
-              className="inline-flex items-center gap-1.5 px-5 py-2 bg-[var(--color-primary)] text-white
+              className="inline-flex items-center gap-1.5 px-5 py-2 bg-green-600 text-white
                          text-sm font-medium rounded-md transition-all duration-200
-                         hover:bg-blue-600 active:scale-95"
+                         hover:bg-green-700 active:scale-95"
               style={{ animation: 'pulse-subtle 2s infinite ease-in-out' }}
             >
               <span>下一步</span>
@@ -179,24 +177,26 @@ export function CompressStep(): JSX.Element {
                 <polyline points="12 5 19 12 12 19" />
               </svg>
             </button>
-          ) : (
+          ) : compressing ? (
             <button
               disabled
               className="inline-flex items-center gap-1.5 px-5 py-2 bg-gray-100 text-gray-400
                          text-sm font-medium rounded-md cursor-not-allowed border border-gray-200"
             >
-              {isProcessing ? (
-                <>
-                  <svg className="w-4 h-4 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" strokeDasharray="31.4 31.4" strokeLinecap="round" />
-                  </svg>
-                  <span>正在压缩 {Math.max(progressPercent, needCount > 0 ? 0 : 100)}%</span>
-                </>
-              ) : (
-                <>
-                  <span>准备压缩...</span>
-                </>
-              )}
+              <svg className="w-4 h-4 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+              </svg>
+              <span>压缩中 {progressItems.size}/{needCount}...</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleCompress}
+              className="inline-flex items-center gap-1.5 px-5 py-2 bg-[var(--color-primary)] text-white
+                         text-sm font-medium rounded-md transition-all duration-200
+                         hover:bg-blue-600 active:scale-95"
+              style={{ animation: 'pulse-subtle 2s infinite ease-in-out' }}
+            >
+              <span>开始压缩</span>
             </button>
           )}
         </div>
@@ -224,26 +224,6 @@ export function CompressStep(): JSX.Element {
             )}
           </div>
         </div>
-      )}
-
-      {/* 压缩按钮 */}
-      {needCount > 0 && !done && (
-        <button
-          onClick={handleCompress}
-          disabled={compressing}
-          className="w-full py-2.5 bg-[var(--color-primary)] text-white text-sm rounded-md
-                     hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed
-                     transition-colors mb-4"
-        >
-          {compressing ? (
-            <span className="inline-flex items-center gap-2">
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              压缩中...
-            </span>
-          ) : (
-            '开始压缩'
-          )}
-        </button>
       )}
 
       {/* 进度列表 */}

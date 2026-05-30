@@ -32,7 +32,7 @@ export function registerOrganizeFilesHandler(): void {
       })
       writeProductJson(packagePath, productData)
 
-      return { success: true, outputPath: packagePath }
+      return { success: true, outputPath: packagePath, productData }
     } catch (error) {
       return {
         success: false,

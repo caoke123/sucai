@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { getR2Config, createS3Client } from './r2Config'
-import type { UploadTask, UploadQueueState } from '@shared/types'
+import type { UploadTask, UploadQueueState, ProductOutput } from '@shared/types'
 import {
   MIME_TYPE_MAP,
   UPLOAD_CONCURRENCY,
@@ -13,6 +13,8 @@ import {
 } from '@shared/constants'
 import { buildR2Metadata } from '../services/export/buildR2Metadata'
 import { validateR2Config } from '../services/config/validateConfig'
+import { pool } from '../db'
+import { syncProductToPIM } from '../services/pim/syncProductToPIM'
 
 function getContentType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase()
@@ -409,6 +411,14 @@ export class UploadQueueManager {
           console.log('[R2 WriteBack] Local product.json updated (with r2Urls)')
         } catch (writeErr) {
           console.error('[R2 Upload] Failed to write back product.json:', (writeErr as Error).message)
+        }
+
+        // ===== Step 5.5: 同步到 PIM 中台（此时 r2Url 已全部填充）=====
+        try {
+          await syncProductToPIM(finalJson as ProductOutput, pool)
+          console.log('[PIM同步] 成功:', (finalJson as Record<string, unknown>).productNo)
+        } catch (pimErr) {
+          console.error('[PIM同步] 失败:', (finalJson as Record<string, unknown>).productNo, pimErr)
         }
       }
 
